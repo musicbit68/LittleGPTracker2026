@@ -12,6 +12,9 @@
 #include "Services/Audio/AudioOut.h"
 
 #define STREAM_MIX_BUS 8
+#define FX_CHORUS_BUS 9
+#define FX_DELAY_BUS 10
+#define FX_REVERB_BUS 11
 
 class PlayerMixer: public T_Singleton<PlayerMixer>,public Observable,public I_Observer {
 public:

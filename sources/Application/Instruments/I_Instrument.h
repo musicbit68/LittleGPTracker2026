@@ -54,5 +54,12 @@ public:
 	  virtual void GetTableState(TableSaveState &state)=0 ;	 
 	  virtual void SetTableState(TableSaveState &state)=0 ;	 
 
+	  // FX send levels (0-255). Default to 0 (no send) so instrument types
+	  // that don't produce local audio (e.g. MIDI) don't need to implement
+	  // these - only SampleInstrument overrides them.
+	  virtual int GetSendChorus() { return 0; };
+	  virtual int GetSendDelay() { return 0; };
+	  virtual int GetSendReverb() { return 0; };
+
 };
 #endif

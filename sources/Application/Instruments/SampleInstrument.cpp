@@ -127,6 +127,15 @@ SampleInstrument::SampleInstrument() {
      irWet_ = new Variable("effect amount", SIP_IR_WET, 45);
      Insert(irWet_);
 
+     sndChorus_ = new Variable("send chorus", SIP_SNDC, 0);
+     Insert(sndChorus_);
+
+     sndDelay_ = new Variable("send delay", SIP_SNDD, 0);
+     Insert(sndDelay_);
+
+     sndReverb_ = new Variable("send reverb", SIP_SNDR, 0);
+     Insert(sndReverb_);
+
      // Initalize instrument's voices update list
 
      for (int i = 0; i < SONG_CHANNEL_COUNT; i++) {

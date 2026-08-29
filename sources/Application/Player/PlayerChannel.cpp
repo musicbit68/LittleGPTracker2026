@@ -4,6 +4,7 @@
 #include "Application/Model/Mixer.h"
 #include "Application/Player/SyncMaster.h"
 #include "Application/Utils/fixed.h"
+#include "Application/Effects/SendBuses.h"
 #include <math.h>
 
 PlayerChannel::PlayerChannel(int index) {             
@@ -91,6 +92,25 @@ bool PlayerChannel::Render(fixed *buffer,int samplecount) {
          if (volume_ != i2fp(1)) {
              for (int i = 0; i < samplecount * 2; i++) {
                  buffer[i] = fp_mul(buffer[i], volume_);
+             }
+         }
+
+         // Send a post-fader copy to each of the three parallel FX buses,
+         // scaled by however much THIS INSTRUMENT wants to send to each
+         // (SNDC/SNDD/SNDR on the instrument, not a per-track control)
+         if (instr_) {
+             int sendChorus = instr_->GetSendChorus();
+             int sendDelay = instr_->GetSendDelay();
+             int sendReverb = instr_->GetSendReverb();
+
+             if (sendChorus > 0) {
+                 ChorusBus::GetInstance()->Accumulate(buffer, samplecount, fl2fp(sendChorus / 255.0f));
+             }
+             if (sendDelay > 0) {
+                 DelayBus::GetInstance()->Accumulate(buffer, samplecount, fl2fp(sendDelay / 255.0f));
+             }
+             if (sendReverb > 0) {
+                 ReverbBus::GetInstance()->Accumulate(buffer, samplecount, fl2fp(sendReverb / 255.0f));
              }
          }
      }

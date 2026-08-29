@@ -44,7 +44,8 @@ enum ViewType {
     VT_TABLE,  // Table screen under phrase
     VT_TABLE2, // Table screen under instrument
     VT_GROOVE,
-    VT_MIXER
+    VT_MIXER,
+    VT_EFFECT  // Effect settings screen under mixer
 };
 
 enum ViewMode {
@@ -90,6 +91,8 @@ class View : public Observable {
         hasFocus_ = true;
         OnFocus();
     };
+
+    ViewType GetViewType() { return viewType_; };
 
     void LooseFocus() { hasFocus_ = false; };
 

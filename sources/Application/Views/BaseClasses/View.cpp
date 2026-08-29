@@ -95,6 +95,10 @@ void View::drawMap() {
 		//row3
         sprintf(buffer, " MTT");
         DrawString(pos._x,pos._y,buffer,props) ;
+		pos._y++ ;
+		//row4
+        sprintf(buffer, "X   ");
+        DrawString(pos._x,pos._y,buffer,props) ;
 
 		//draw current screen on map
 		SetColor(CD_HILITE2) ;
@@ -137,6 +141,9 @@ void View::drawMap() {
             pos._x+=1;
 			pos._y+=2;
 	        DrawString(pos._x,pos._y,"M",props) ;
+			break;
+        case VT_EFFECT:
+	        DrawString(pos._x,pos._y+3,"X",props) ;
 			break;
 		default: //VT_SONG
 			pos._y+=1;

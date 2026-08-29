@@ -138,6 +138,12 @@ void MixerView::processNormalButtonMask(unsigned int mask) {
             viewData_->songX_ = viewData_->mixerCol_;
             SetChanged();
             NotifyObservers(&ve);
+        } else if (mask & EPBM_DOWN) {
+            // R + DOWN = go to Effect Settings (chorus/delay/reverb params)
+            ViewType vt = VT_EFFECT;
+            ViewEvent ve(VET_SWITCH_VIEW, &vt);
+            SetChanged();
+            NotifyObservers(&ve);
         } else if (mask & EPBM_RIGHT) {
             ViewType vt = VT_TABLE;
             ViewEvent ve(VET_SWITCH_VIEW, &vt);
@@ -341,15 +347,7 @@ void MixerView::DrawView() {
 
 	SetColor(CD_NORMAL) ;
 
-    Player *player = Player::GetInstance();
-
-    std::ostringstream os;
-
-    os << ((player->GetSequencerMode() == SM_SONG) ? "Song" : "Live");
-
-    std::string buffer(os.str());
-
-    DrawString(pos._x, pos._y, buffer.c_str(), props);
+    DrawString(pos._x, pos._y, "Mixer", props);
 
     // Draw mixer grid with row labels
     pos = anchor;
@@ -482,11 +480,12 @@ void MixerView::DrawView() {
         pos._x += dx;
     }
 
+    // Row 4: FX Send amount
     drawMap() ;
 	drawNotes() ;
     EnableNotification();
 
-    if (player->IsRunning()) {
+    if (Player::GetInstance()->IsRunning()) {
         OnPlayerUpdate(PET_UPDATE);
     }
 

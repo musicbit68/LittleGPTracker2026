@@ -116,6 +116,26 @@ void InstrumentView::fillSampleParameters() {
 	f1=new UIIntVarField(position,*v,"pan: %2.2X",0,0xFE,1,0x10) ;
 	T_SimpleList<UIField>::Insert(f1) ;
 
+	position._y+=2 ;
+	UIStaticField *sendLabel=new UIStaticField(position,"snd c/d/r: ") ;
+	T_SimpleList<UIField>::Insert(sendLabel) ;
+
+	position._x+=13 ;
+	v=instrument->FindVariable(SIP_SNDC) ;
+	f1=new UIIntVarField(position,*v,"%2.2X",0,0xFF,1,0x10) ;
+	T_SimpleList<UIField>::Insert(f1) ;
+
+	position._x+=3 ;
+	v=instrument->FindVariable(SIP_SNDD) ;
+	f1=new UIIntVarField(position,*v,"%2.2X",0,0xFF,1,0x10) ;
+	T_SimpleList<UIField>::Insert(f1) ;
+
+	position._x+=3 ;
+	v=instrument->FindVariable(SIP_SNDR) ;
+	f1=new UIIntVarField(position,*v,"%2.2X",0,0xFF,1,0x10) ;
+	T_SimpleList<UIField>::Insert(f1) ;
+	position._x-=19 ;
+
 	position._y+=1 ;
 	v=instrument->FindVariable(SIP_ROOTNOTE) ;
 	f1=new UINoteVarField(position,*v,"root note: %s",0,0x7F,1,0x0C) ;

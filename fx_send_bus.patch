@@ -1,0 +1,1576 @@
+diff --git a/projects/Makefile b/projects/Makefile
+index 9fc7e43..3f14300 100644
+--- a/projects/Makefile
++++ b/projects/Makefile
+@@ -46,6 +46,7 @@ COMMONDIRS := \
+ 	../sources/Application/Utils \
+ 	../sources/Application/Player \
+ 	../sources/Application/Mixer \
++	../sources/Application/Effects \
+ 	../sources/Application/Instruments \
+ 	../sources/Application/Persistency \
+ 	../sources/Foundation \
+@@ -230,7 +231,7 @@ COMMONFILES := \
+ 	MidiChannel.o MidiInMerger.o \
+ 	GUIEvent.o GUIRect.o \
+ 	EventManager.o GUIWindow.o \
+-	Channel.o Mixer.o \
++	Channel.o Mixer.o EffectsSettings.o \
+ 	ControlRoom.o \
+ 	MultiChannelAdapter.o \
+ 	CommandDispatcher.o \
+@@ -247,7 +248,7 @@ COMMONFILES := \
+ 	Application.o AppWindow.o SelectProjectDialog.o \
+ 	NewProjectDialog.o \
+ 	ImportSampleDialog.o \
+-	MixerView.o NullView.o \
++	MixerView.o NullView.o EffectView.o \
+ 	SongView.o ChainView.o PhraseView.o ViewData.o ConsoleView.o ProjectView.o InstrumentView.o UIController.o \
+ 	View.o ModalView.o FieldView.o UIField.o UIIntField.o \
+ 	UIIntVarOffField.o UIIntVarField.o ViewEvent.o I_Action.o\
+@@ -266,6 +267,7 @@ COMMONFILES := \
+ 	AudioOut.o \
+ 	DummyAudioOut.o PlayerChannel.o AudioFileStreamer.o \
+ 	MixBus.o \
++	DelayEffect.o ChorusEffect.o ReverbEffect.o \
+ 	MixerService.o PlayerMixer.o \
+ 	Service.o ServiceRegistry.o SubService.o \
+ 	Variable.o VariableContainer.o WatchedVariable.o \
+diff --git a/sources/Application/AppWindow.cpp b/sources/Application/AppWindow.cpp
+index e7d5ec9..d6a42bb 100644
+--- a/sources/Application/AppWindow.cpp
++++ b/sources/Application/AppWindow.cpp
+@@ -84,6 +84,7 @@ AppWindow::AppWindow(I_GUIWindowImp &imp) : GUIWindow(imp) {
+     _tableView = 0;
+     _nullView = 0;
+     _mixerView = 0;
++    _effectView = 0;
+     _grooveView = 0;
+     _closeProject = 0;
+     _loadAfterSaveAsProject = 0;
+@@ -389,6 +390,9 @@ void AppWindow::LoadProject(const Path &p) {
+     _mixerView = new MixerView((*this), _viewData);
+     _mixerView->AddObserver(*this);
+ 
++    _effectView = new EffectView((*this), _viewData);
++    _effectView->AddObserver(*this);
++
+     _currentView = _songView;
+     _currentView->OnFocus();
+ 
+@@ -558,6 +562,7 @@ void AppWindow::Update(Observable &o, I_ObservableData *d) {
+ 
+     case VET_SWITCH_VIEW: {
+         ViewType *vt = (ViewType *)ve->GetData();
++        ViewType previousType = _currentView ? _currentView->GetViewType() : VT_SONG;
+         if (_currentView) {
+             _currentView->LooseFocus();
+         }
+@@ -588,6 +593,14 @@ void AppWindow::Update(Observable &o, I_ObservableData *d) {
+             break;
+         case VT_MIXER:
+             _currentView = _mixerView;
++            // Only Song/Chain can lead here - remember which, so R+UP
++            // from Mixer goes back to whichever one you actually came from
++            if (previousType == VT_SONG || previousType == VT_CHAIN) {
++                _mixerView->SetPreviousViewType(previousType);
++            }
++            break;
++        case VT_EFFECT:
++            _currentView = _effectView;
+             break;
+         }
+         _currentView->SetFocus(*vt);
+diff --git a/sources/Application/AppWindow.h b/sources/Application/AppWindow.h
+index a312bda..301ba28 100644
+--- a/sources/Application/AppWindow.h
++++ b/sources/Application/AppWindow.h
+@@ -7,6 +7,7 @@
+ #include "Application/Views/GrooveView.h"
+ #include "Application/Views/InstrumentView.h"
+ #include "Application/Views/MixerView.h"
++#include "Application/Views/EffectView.h"
+ #include "Application/Views/NullView.h"
+ #include "Application/Views/PhraseView.h"
+ #include "Application/Views/ProjectView.h"
+@@ -72,6 +73,7 @@ class AppWindow : public GUIWindow, I_Observer, Status {
+     GrooveView *_grooveView;
+     NullView *_nullView;
+     MixerView *_mixerView;
++    EffectView *_effectView;
+ 
+     Path _root;
+ 
+diff --git a/sources/Application/Effects/ChorusEffect.cpp b/sources/Application/Effects/ChorusEffect.cpp
+new file mode 100644
+index 0000000..3d5c71b
+--- /dev/null
++++ b/sources/Application/Effects/ChorusEffect.cpp
+@@ -0,0 +1,111 @@
++#include "ChorusEffect.h"
++#include "System/System/System.h"
++#include <math.h>
++#include <string.h>
++
++#define CHORUS_PI 3.14159265358979323846f
++
++ChorusEffect::ChorusEffect() {
++	bufferL_ = 0;
++	bufferR_ = 0;
++	writePos_ = 0;
++	lfoPhaseL_ = 0.0f;
++	lfoPhaseR_ = CHORUS_PI * 0.5f; // quadrature offset for stereo width
++	lfoIncrement_ = 2.0f * CHORUS_PI * 0.6f / (float)CHORUS_SAMPLE_RATE; // 0.6Hz default
++	depthSamples_ = ((float)CHORUS_SAMPLE_RATE * 4.0f) / 1000.0f;   // 4ms default depth
++	centerSamples_ = ((float)CHORUS_SAMPLE_RATE * 12.0f) / 1000.0f; // 12ms default center
++	mix_ = fl2fp(0.5f);
++	width_ = i2fp(1);
++}
++
++ChorusEffect::~ChorusEffect() {
++	SAFE_FREE(bufferL_);
++	SAFE_FREE(bufferR_);
++}
++
++void ChorusEffect::Init() {
++	SAFE_FREE(bufferL_);
++	SAFE_FREE(bufferR_);
++	bufferL_ = (fixed *)SYS_MALLOC(CHORUS_BUFFER_SAMPLES * sizeof(fixed));
++	bufferR_ = (fixed *)SYS_MALLOC(CHORUS_BUFFER_SAMPLES * sizeof(fixed));
++	memset(bufferL_, 0, CHORUS_BUFFER_SAMPLES * sizeof(fixed));
++	memset(bufferR_, 0, CHORUS_BUFFER_SAMPLES * sizeof(fixed));
++	writePos_ = 0;
++}
++
++void ChorusEffect::SetRateHz(float rateHz) {
++	if (rateHz < 0.01f) rateHz = 0.01f;
++	lfoIncrement_ = 2.0f * CHORUS_PI * rateHz / (float)CHORUS_SAMPLE_RATE;
++}
++
++void ChorusEffect::SetDepthMs(float depthMs) {
++	if (depthMs < 0.0f) depthMs = 0.0f;
++	float maxDepth = (float)CHORUS_MAX_DELAY_MS * 0.5f;
++	if (depthMs > maxDepth) depthMs = maxDepth;
++	depthSamples_ = ((float)CHORUS_SAMPLE_RATE * depthMs) / 1000.0f;
++}
++
++void ChorusEffect::SetMix(fixed mix) {
++	mix_ = mix;
++}
++
++void ChorusEffect::SetWidth(fixed width) {
++	width_ = width;
++}
++
++// Linear-interpolated fractional read from a circular delay buffer
++static fixed readInterpolated(fixed *buf, int writePos, float delaySamples) {
++	float readPosF = (float)writePos - delaySamples;
++	while (readPosF < 0.0f) readPosF += (float)CHORUS_BUFFER_SAMPLES;
++
++	int idx0 = (int)readPosF;
++	int idx1 = idx0 + 1;
++	if (idx1 >= CHORUS_BUFFER_SAMPLES) idx1 = 0;
++	if (idx0 >= CHORUS_BUFFER_SAMPLES) idx0 = 0;
++
++	float frac = readPosF - (float)idx0;
++	fixed s0 = buf[idx0];
++	fixed s1 = buf[idx1];
++	fixed fracFp = fl2fp(frac);
++	return fp_add(s0, fp_mul(fp_sub(s1, s0), fracFp));
++}
++
++void ChorusEffect::Process(fixed *buffer, int samplecount) {
++	if (!bufferL_ || !bufferR_) return;
++
++	fixed dryGain = fp_sub(i2fp(1), mix_);
++
++	for (int n = 0; n < samplecount; n++) {
++		int idx = n * 2;
++		fixed inL = buffer[idx];
++		fixed inR = buffer[idx + 1];
++
++		bufferL_[writePos_] = inL;
++		bufferR_[writePos_] = inR;
++
++		float delayL = centerSamples_ + depthSamples_ * sinf(lfoPhaseL_);
++		float delayR = centerSamples_ + depthSamples_ * sinf(lfoPhaseR_);
++
++		fixed wetL = readInterpolated(bufferL_, writePos_, delayL);
++		fixed wetR = readInterpolated(bufferR_, writePos_, delayR);
++
++		// stereo width: blend the two modulated taps via mid/side
++		fixed half = fl2fp(0.5f);
++		fixed mid = fp_mul(fp_add(wetL, wetR), half);
++		fixed side = fp_mul(fp_sub(wetL, wetR), half);
++		side = fp_mul(side, width_);
++		wetL = fp_add(mid, side);
++		wetR = fp_sub(mid, side);
++
++		buffer[idx] = fp_add(fp_mul(inL, dryGain), fp_mul(wetL, mix_));
++		buffer[idx + 1] = fp_add(fp_mul(inR, dryGain), fp_mul(wetR, mix_));
++
++		lfoPhaseL_ += lfoIncrement_;
++		if (lfoPhaseL_ > 2.0f * CHORUS_PI) lfoPhaseL_ -= 2.0f * CHORUS_PI;
++		lfoPhaseR_ += lfoIncrement_;
++		if (lfoPhaseR_ > 2.0f * CHORUS_PI) lfoPhaseR_ -= 2.0f * CHORUS_PI;
++
++		writePos_++;
++		if (writePos_ >= CHORUS_BUFFER_SAMPLES) writePos_ = 0;
++	}
++}
+diff --git a/sources/Application/Effects/ChorusEffect.h b/sources/Application/Effects/ChorusEffect.h
+new file mode 100644
+index 0000000..6938cac
+--- /dev/null
++++ b/sources/Application/Effects/ChorusEffect.h
+@@ -0,0 +1,45 @@
++#ifndef _CHORUS_EFFECT_H_
++#define _CHORUS_EFFECT_H_
++
++#include "Application/Utils/fixed.h"
++
++// Modulated short delay (LFO-driven) stereo chorus, used as a stage in the
++// FX send bus chain. Operates in place on interleaved stereo buffers.
++
++#define CHORUS_SAMPLE_RATE 44100
++#define CHORUS_MAX_DELAY_MS 40
++#define CHORUS_BUFFER_SAMPLES (((CHORUS_MAX_DELAY_MS * CHORUS_SAMPLE_RATE) / 1000) + 1)
++
++class ChorusEffect {
++public:
++	ChorusEffect();
++	~ChorusEffect();
++
++	void Init();
++	void Process(fixed *buffer, int samplecount);
++
++	// rateHz: LFO speed, roughly 0.05 .. 5 Hz
++	void SetRateHz(float rateHz);
++	// depthMs: modulation depth in milliseconds, 0 .. CHORUS_MAX_DELAY_MS/2
++	void SetDepthMs(float depthMs);
++	// mix: fixed 0 (dry only) .. i2fp(1) (fully wet)
++	void SetMix(fixed mix);
++	// width: fixed 0 (mono sum) .. i2fp(1) (normal stereo)
++	void SetWidth(fixed width);
++
++private:
++	fixed *bufferL_;
++	fixed *bufferR_;
++	int writePos_;
++
++	float lfoPhaseL_;
++	float lfoPhaseR_;
++	float lfoIncrement_;
++	float depthSamples_;
++	float centerSamples_;
++
++	fixed mix_;
++	fixed width_;
++};
++
++#endif
+diff --git a/sources/Application/Effects/DelayEffect.cpp b/sources/Application/Effects/DelayEffect.cpp
+new file mode 100644
+index 0000000..5381ec1
+--- /dev/null
++++ b/sources/Application/Effects/DelayEffect.cpp
+@@ -0,0 +1,91 @@
++#include "DelayEffect.h"
++#include "System/System/System.h"
++#include <string.h>
++
++DelayEffect::DelayEffect() {
++	bufferL_ = 0;
++	bufferR_ = 0;
++	writePos_ = 0;
++	delaySamplesL_ = (DELAY_SAMPLE_RATE * 250) / 1000; // default 250ms
++	delaySamplesR_ = (DELAY_SAMPLE_RATE * 250) / 1000;
++	feedback_ = fl2fp(0.35f);
++	mix_ = fl2fp(0.35f);
++	width_ = i2fp(1);
++}
++
++DelayEffect::~DelayEffect() {
++	SAFE_FREE(bufferL_);
++	SAFE_FREE(bufferR_);
++}
++
++void DelayEffect::Init() {
++	SAFE_FREE(bufferL_);
++	SAFE_FREE(bufferR_);
++	bufferL_ = (fixed *)SYS_MALLOC(DELAY_MAX_SAMPLES * sizeof(fixed));
++	bufferR_ = (fixed *)SYS_MALLOC(DELAY_MAX_SAMPLES * sizeof(fixed));
++	memset(bufferL_, 0, DELAY_MAX_SAMPLES * sizeof(fixed));
++	memset(bufferR_, 0, DELAY_MAX_SAMPLES * sizeof(fixed));
++	writePos_ = 0;
++}
++
++void DelayEffect::SetTimeMsL(int timeMs) {
++	if (timeMs < 1) timeMs = 1;
++	if (timeMs > DELAY_MAX_MS) timeMs = DELAY_MAX_MS;
++	delaySamplesL_ = (DELAY_SAMPLE_RATE * timeMs) / 1000;
++}
++
++void DelayEffect::SetTimeMsR(int timeMs) {
++	if (timeMs < 1) timeMs = 1;
++	if (timeMs > DELAY_MAX_MS) timeMs = DELAY_MAX_MS;
++	delaySamplesR_ = (DELAY_SAMPLE_RATE * timeMs) / 1000;
++}
++
++void DelayEffect::SetFeedback(fixed feedback) {
++	feedback_ = feedback;
++}
++
++void DelayEffect::SetMix(fixed mix) {
++	mix_ = mix;
++}
++
++void DelayEffect::SetWidth(fixed width) {
++	width_ = width;
++}
++
++void DelayEffect::Process(fixed *buffer, int samplecount) {
++	if (!bufferL_ || !bufferR_) return;
++
++	fixed dryGain = fp_sub(i2fp(1), mix_);
++	fixed half = fl2fp(0.5f);
++
++	for (int n = 0; n < samplecount; n++) {
++		int idx = n * 2;
++		fixed inL = buffer[idx];
++		fixed inR = buffer[idx + 1];
++
++		int readPosL = writePos_ - delaySamplesL_;
++		while (readPosL < 0) readPosL += DELAY_MAX_SAMPLES;
++		int readPosR = writePos_ - delaySamplesR_;
++		while (readPosR < 0) readPosR += DELAY_MAX_SAMPLES;
++
++		fixed delayedL = bufferL_[readPosL];
++		fixed delayedR = bufferR_[readPosR];
++
++		// write input + feedback of delayed signal into the delay line
++		bufferL_[writePos_] = fp_add(inL, fp_mul(delayedL, feedback_));
++		bufferR_[writePos_] = fp_add(inR, fp_mul(delayedR, feedback_));
++
++		// stereo width: blend delayed L/R via a mid/side scale before mixing
++		fixed mid = fp_mul(fp_add(delayedL, delayedR), half);
++		fixed side = fp_mul(fp_sub(delayedL, delayedR), half);
++		side = fp_mul(side, width_);
++		fixed wetL = fp_add(mid, side);
++		fixed wetR = fp_sub(mid, side);
++
++		buffer[idx] = fp_add(fp_mul(inL, dryGain), fp_mul(wetL, mix_));
++		buffer[idx + 1] = fp_add(fp_mul(inR, dryGain), fp_mul(wetR, mix_));
++
++		writePos_++;
++		if (writePos_ >= DELAY_MAX_SAMPLES) writePos_ = 0;
++	}
++}
+diff --git a/sources/Application/Effects/DelayEffect.h b/sources/Application/Effects/DelayEffect.h
+new file mode 100644
+index 0000000..156c995
+--- /dev/null
++++ b/sources/Application/Effects/DelayEffect.h
+@@ -0,0 +1,45 @@
++#ifndef _DELAY_EFFECT_H_
++#define _DELAY_EFFECT_H_
++
++#include "Application/Utils/fixed.h"
++
++// Simple stereo feedback delay, used as a stage in the FX send bus chain.
++// Operates in place on interleaved stereo buffers of type "fixed".
++
++#define DELAY_MAX_MS 1200
++#define DELAY_SAMPLE_RATE 44100
++// +1 guards against rounding when converting ms -> samples at the max time
++#define DELAY_MAX_SAMPLES (((DELAY_MAX_MS * DELAY_SAMPLE_RATE) / 1000) + 1)
++
++class DelayEffect {
++public:
++	DelayEffect();
++	~DelayEffect();
++
++	void Init();
++	void Process(fixed *buffer, int samplecount);
++
++	// timeMs: 1..DELAY_MAX_MS - separate per channel so ping-pong/offset
++	// delay times are possible
++	void SetTimeMsL(int timeMs);
++	void SetTimeMsR(int timeMs);
++	// feedback: fixed 0..~0.95 (i2fp(0)..close to i2fp(1))
++	void SetFeedback(fixed feedback);
++	// mix: fixed 0 (dry only) .. i2fp(1) (fully wet)
++	void SetMix(fixed mix);
++	// width: fixed 0 (mono sum) .. i2fp(1) (normal stereo). Blends L/R via
++	// a simple mid/side scale on the wet output.
++	void SetWidth(fixed width);
++
++private:
++	fixed *bufferL_;
++	fixed *bufferR_;
++	int writePos_;
++	int delaySamplesL_;
++	int delaySamplesR_;
++	fixed feedback_;
++	fixed mix_;
++	fixed width_;
++};
++
++#endif
+diff --git a/sources/Application/Effects/ReverbEffect.cpp b/sources/Application/Effects/ReverbEffect.cpp
+new file mode 100644
+index 0000000..9341a3f
+--- /dev/null
++++ b/sources/Application/Effects/ReverbEffect.cpp
+@@ -0,0 +1,228 @@
++#include "ReverbEffect.h"
++#include "System/System/System.h"
++#include <string.h>
++#include <math.h>
++
++#define REVERB_PI 3.14159265358979323846f
++
++// Classic Freeverb tuning values, in samples @ 44100Hz.
++// Right channel uses a small offset from left for stereo width.
++static const int kCombTuningL[REVERB_COMB_COUNT] = {1116, 1188, 1277, 1356};
++static const int kCombTuningR[REVERB_COMB_COUNT] = {1139, 1211, 1300, 1379};
++static const int kAllpassTuningL[REVERB_ALLPASS_COUNT] = {556, 225};
++static const int kAllpassTuningR[REVERB_ALLPASS_COUNT] = {579, 244};
++
++#define REVERB_ALLPASS_FEEDBACK 0.5f
++
++ReverbEffect::ReverbEffect() {
++	int i;
++	for (i = 0; i < REVERB_COMB_COUNT; i++) {
++		combL_[i].buffer = 0;
++		combR_[i].buffer = 0;
++		// stagger each comb's mod phase for a smoother, less "wobbly" blend
++		modPhase_[i] = (REVERB_PI * 2.0f * i) / (float)REVERB_COMB_COUNT;
++	}
++	for (i = 0; i < REVERB_ALLPASS_COUNT; i++) {
++		allpassL_[i].buffer = 0;
++		allpassR_[i].buffer = 0;
++	}
++	mix_ = fl2fp(0.35f);
++	width_ = i2fp(1);
++	modDepthSamples_ = 0.0f;
++	modIncrement_ = 2.0f * REVERB_PI * 0.2f / 44100.0f; // default 0.2Hz
++}
++
++ReverbEffect::~ReverbEffect() {
++	int i;
++	for (i = 0; i < REVERB_COMB_COUNT; i++) {
++		SAFE_FREE(combL_[i].buffer);
++		SAFE_FREE(combR_[i].buffer);
++	}
++	for (i = 0; i < REVERB_ALLPASS_COUNT; i++) {
++		SAFE_FREE(allpassL_[i].buffer);
++		SAFE_FREE(allpassR_[i].buffer);
++	}
++}
++
++void ReverbEffect::initComb(Comb &c, int size) {
++	SAFE_FREE(c.buffer);
++	c.buffer = (fixed *)SYS_MALLOC(size * sizeof(fixed));
++	memset(c.buffer, 0, size * sizeof(fixed));
++	c.size = size;
++	c.index = 0;
++	c.feedback = fl2fp(0.84f);
++	c.damp1 = fl2fp(0.2f);
++	c.damp2 = fl2fp(0.8f);
++	c.filterStore = i2fp(0);
++}
++
++void ReverbEffect::initAllpass(Allpass &a, int size) {
++	SAFE_FREE(a.buffer);
++	a.buffer = (fixed *)SYS_MALLOC(size * sizeof(fixed));
++	memset(a.buffer, 0, size * sizeof(fixed));
++	a.size = size;
++	a.index = 0;
++	a.feedback = fl2fp(REVERB_ALLPASS_FEEDBACK);
++}
++
++void ReverbEffect::Init() {
++	int i;
++	for (i = 0; i < REVERB_COMB_COUNT; i++) {
++		initComb(combL_[i], kCombTuningL[i]);
++		initComb(combR_[i], kCombTuningR[i]);
++	}
++	for (i = 0; i < REVERB_ALLPASS_COUNT; i++) {
++		initAllpass(allpassL_[i], kAllpassTuningL[i]);
++		initAllpass(allpassR_[i], kAllpassTuningR[i]);
++	}
++}
++
++void ReverbEffect::SetRoomSize(int roomSize) {
++	if (roomSize < 0) roomSize = 0;
++	if (roomSize > 100) roomSize = 100;
++	float fb = 0.7f + ((float)roomSize / 100.0f) * 0.28f; // 0.70 .. 0.98
++	fixed fbFp = fl2fp(fb);
++	int i;
++	for (i = 0; i < REVERB_COMB_COUNT; i++) {
++		combL_[i].feedback = fbFp;
++		combR_[i].feedback = fbFp;
++	}
++}
++
++void ReverbEffect::SetDamping(int damping) {
++	if (damping < 0) damping = 0;
++	if (damping > 100) damping = 100;
++	float d1 = ((float)damping / 100.0f) * 0.4f;
++	fixed damp1Fp = fl2fp(d1);
++	fixed damp2Fp = fl2fp(1.0f - d1);
++	int i;
++	for (i = 0; i < REVERB_COMB_COUNT; i++) {
++		combL_[i].damp1 = damp1Fp;
++		combL_[i].damp2 = damp2Fp;
++		combR_[i].damp1 = damp1Fp;
++		combR_[i].damp2 = damp2Fp;
++	}
++}
++
++void ReverbEffect::SetMix(fixed mix) {
++	mix_ = mix;
++}
++
++void ReverbEffect::SetWidth(fixed width) {
++	width_ = width;
++}
++
++void ReverbEffect::SetModDepth(int modDepth) {
++	if (modDepth < 0) modDepth = 0;
++	if (modDepth > 100) modDepth = 100;
++	// up to ~6 samples of wander - enough to sound lush without obvious pitch wobble
++	modDepthSamples_ = ((float)modDepth / 100.0f) * 6.0f;
++}
++
++void ReverbEffect::SetModRateHz(float modRateHz) {
++	if (modRateHz < 0.01f) modRateHz = 0.01f;
++	modIncrement_ = 2.0f * REVERB_PI * modRateHz / 44100.0f;
++}
++
++fixed ReverbEffect::processComb(Comb &c, fixed input) {
++	fixed output = c.buffer[c.index];
++
++	// one-pole damping filter in the feedback path
++	c.filterStore = fp_add(fp_mul(output, c.damp2), fp_mul(c.filterStore, c.damp1));
++
++	c.buffer[c.index] = fp_add(input, fp_mul(c.filterStore, c.feedback));
++
++	c.index++;
++	if (c.index >= c.size) c.index = 0;
++
++	return output;
++}
++
++fixed ReverbEffect::processAllpass(Allpass &a, fixed input) {
++	fixed bufOut = a.buffer[a.index];
++	fixed output = fp_sub(bufOut, input);
++	a.buffer[a.index] = fp_add(input, fp_mul(bufOut, a.feedback));
++
++	a.index++;
++	if (a.index >= a.size) a.index = 0;
++
++	return output;
++}
++
++// Reads a linearly-interpolated tap a little ahead of/behind the comb's
++// current write position, for the animated "lush" modulation layer. Does
++// NOT touch the comb's feedback path - purely an additional, separate tap
++// blended into the output, so it can't destabilize the core reverb tail.
++fixed ReverbEffect::readModulatedTap(Comb &c, float phase) {
++	float offset = modDepthSamples_ * sinf(phase);
++	float readPosF = (float)c.index + offset;
++	while (readPosF < 0.0f) readPosF += (float)c.size;
++	while (readPosF >= (float)c.size) readPosF -= (float)c.size;
++
++	int idx0 = (int)readPosF;
++	int idx1 = idx0 + 1;
++	if (idx1 >= c.size) idx1 = 0;
++
++	float frac = readPosF - (float)idx0;
++	fixed s0 = c.buffer[idx0];
++	fixed s1 = c.buffer[idx1];
++	fixed fracFp = fl2fp(frac);
++	return fp_add(s0, fp_mul(fp_sub(s1, s0), fracFp));
++}
++
++void ReverbEffect::Process(fixed *buffer, int samplecount) {
++	if (!combL_[0].buffer) return;
++
++	fixed dryGain = fp_sub(i2fp(1), mix_);
++	fixed half = fl2fp(0.5f);
++	// scale feeding the combs down so the parallel sum doesn't overload
++	fixed combInputGain = fl2fp(1.0f / (float)REVERB_COMB_COUNT);
++
++	for (int n = 0; n < samplecount; n++) {
++		int idx = n * 2;
++		fixed inL = buffer[idx];
++		fixed inR = buffer[idx + 1];
++
++		fixed combInL = fp_mul(inL, combInputGain);
++		fixed combInR = fp_mul(inR, combInputGain);
++
++		fixed wetL = i2fp(0);
++		fixed wetR = i2fp(0);
++		int i;
++		for (i = 0; i < REVERB_COMB_COUNT; i++) {
++			// modulated tap read BEFORE processComb overwrites this comb's
++			// current write index, layered on top of the standard tap
++			fixed modTapL = i2fp(0);
++			fixed modTapR = i2fp(0);
++			if (modDepthSamples_ > 0.0f) {
++				modTapL = readModulatedTap(combL_[i], modPhase_[i]);
++				modTapR = readModulatedTap(combR_[i], modPhase_[i]);
++			}
++
++			wetL = fp_add(wetL, fp_add(processComb(combL_[i], combInL), modTapL));
++			wetR = fp_add(wetR, fp_add(processComb(combR_[i], combInR), modTapR));
++		}
++
++		for (i = 0; i < REVERB_ALLPASS_COUNT; i++) {
++			wetL = processAllpass(allpassL_[i], wetL);
++			wetR = processAllpass(allpassR_[i], wetR);
++		}
++
++		if (modDepthSamples_ > 0.0f) {
++			for (i = 0; i < REVERB_COMB_COUNT; i++) {
++				modPhase_[i] += modIncrement_;
++				if (modPhase_[i] > 2.0f * REVERB_PI) modPhase_[i] -= 2.0f * REVERB_PI;
++			}
++		}
++
++		// stereo width: blend the wet signal via mid/side before final mix
++		fixed mid = fp_mul(fp_add(wetL, wetR), half);
++		fixed side = fp_mul(fp_sub(wetL, wetR), half);
++		side = fp_mul(side, width_);
++		wetL = fp_add(mid, side);
++		wetR = fp_sub(mid, side);
++
++		buffer[idx] = fp_add(fp_mul(inL, dryGain), fp_mul(wetL, mix_));
++		buffer[idx + 1] = fp_add(fp_mul(inR, dryGain), fp_mul(wetR, mix_));
++	}
++}
+diff --git a/sources/Application/Effects/ReverbEffect.h b/sources/Application/Effects/ReverbEffect.h
+new file mode 100644
+index 0000000..021b419
+--- /dev/null
++++ b/sources/Application/Effects/ReverbEffect.h
+@@ -0,0 +1,71 @@
++#ifndef _REVERB_EFFECT_H_
++#define _REVERB_EFFECT_H_
++
++#include "Application/Utils/fixed.h"
++
++// A simplified Freeverb-style reverb (parallel damped comb filters followed
++// by series allpass diffusers), stereo, fixed point. Used as a stage in the
++// FX send bus chain. Operates in place on interleaved stereo buffers.
++
++#define REVERB_COMB_COUNT 4
++#define REVERB_ALLPASS_COUNT 2
++
++class ReverbEffect {
++public:
++	ReverbEffect();
++	~ReverbEffect();
++
++	void Init();
++	void Process(fixed *buffer, int samplecount);
++
++	// roomSize: 0..100, maps to comb feedback (bigger = longer decay)
++	void SetRoomSize(int roomSize);
++	// damping: 0..100, maps to high-frequency damping in the comb feedback path
++	void SetDamping(int damping);
++	// mix: fixed 0 (dry only) .. i2fp(1) (fully wet)
++	void SetMix(fixed mix);
++	// width: fixed 0 (mono sum) .. i2fp(1) (normal stereo)
++	void SetWidth(fixed width);
++	// modDepth: 0..100, adds a subtle animated/lush layer on top of the
++	// static tail (short of true pitch-shifted "shimmer", but in that
++	// direction - a gently chorused reverb tail)
++	void SetModDepth(int modDepth);
++	// modRateHz: speed of that modulation, roughly 0.05..2 Hz
++	void SetModRateHz(float modRateHz);
++
++private:
++	struct Comb {
++		fixed *buffer;
++		int size;
++		int index;
++		fixed feedback;
++		fixed damp1;
++		fixed damp2;
++		fixed filterStore;
++	};
++	struct Allpass {
++		fixed *buffer;
++		int size;
++		int index;
++		fixed feedback;
++	};
++
++	Comb combL_[REVERB_COMB_COUNT];
++	Comb combR_[REVERB_COMB_COUNT];
++	Allpass allpassL_[REVERB_ALLPASS_COUNT];
++	Allpass allpassR_[REVERB_ALLPASS_COUNT];
++
++	fixed mix_;
++	fixed width_;
++	float modDepthSamples_;
++	float modPhase_[REVERB_COMB_COUNT];
++	float modIncrement_;
++
++	void initComb(Comb &c, int size);
++	void initAllpass(Allpass &a, int size);
++	fixed processComb(Comb &c, fixed input);
++	fixed processAllpass(Allpass &a, fixed input);
++	fixed readModulatedTap(Comb &c, float phase);
++};
++
++#endif
+diff --git a/sources/Application/Effects/SendBuses.h b/sources/Application/Effects/SendBuses.h
+new file mode 100644
+index 0000000..c81eac4
+--- /dev/null
++++ b/sources/Application/Effects/SendBuses.h
+@@ -0,0 +1,16 @@
++#ifndef _SEND_BUSES_H_
++#define _SEND_BUSES_H_
++
++#include "T_SendBus.h"
++#include "DelayEffect.h"
++#include "ChorusEffect.h"
++#include "ReverbEffect.h"
++
++// Three independent, parallel send buses - one per effect. Each is summed
++// into master on its own (see PlayerMixer::Init), so they behave like three
++// separate aux sends on a mixing console rather than one serial FX chain.
++typedef T_SendBus<ChorusEffect> ChorusBus;
++typedef T_SendBus<DelayEffect> DelayBus;
++typedef T_SendBus<ReverbEffect> ReverbBus;
++
++#endif
+diff --git a/sources/Application/Effects/T_SendBus.h b/sources/Application/Effects/T_SendBus.h
+new file mode 100644
+index 0000000..d72b85b
+--- /dev/null
++++ b/sources/Application/Effects/T_SendBus.h
+@@ -0,0 +1,108 @@
++#ifndef _T_SEND_BUS_H_
++#define _T_SEND_BUS_H_
++
++#include "Foundation/T_Singleton.h"
++#include "Services/Audio/AudioModule.h"
++#include "System/System/System.h"
++#include <string.h>
++
++// Common interface so one send bus can feed a scaled copy of its processed
++// output into another (e.g. chorus/delay feeding reverb), without the
++// buses needing to know each other's concrete effect type.
++class I_SendTarget {
++public:
++	virtual ~I_SendTarget() {};
++	virtual void Accumulate(fixed *buffer, int samplecount, fixed sendLevel) = 0;
++};
++
++// A single-effect send bus: instruments accumulate a scaled copy of their
++// own output here (via Accumulate), and once per audio callback Render()
++// picks up whatever was accumulated, runs it through one effect, and hands
++// it back to be summed into the master bus. Unlike a serial FX chain, each
++// T_SendBus<Effect> is independent and runs in parallel with the others -
++// they are all summed into master separately (see PlayerMixer::Init, which
++// inserts each into its own MixBus).
++//
++// EffectClass just needs: Init(), Process(fixed*, int).
++template <class EffectClass>
++class T_SendBus: public T_Singleton<T_SendBus<EffectClass> >, public AudioModule, public I_SendTarget {
++public:
++	T_SendBus() {
++		accumulator_ = 0;
++		accumulatorSize_ = 0;
++		enabled_ = true;
++		downstream_ = 0;
++		downstreamSend_ = i2fp(0);
++	}
++
++	virtual ~T_SendBus() {
++		SAFE_FREE(accumulator_);
++	}
++
++	void Init() {
++		effect_.Init();
++	}
++
++	void SetEnabled(bool enabled) { enabled_ = enabled; }
++
++	// Optionally feed a scaled copy of this bus's PROCESSED (post-effect)
++	// output into another send bus - e.g. chorus/delay feeding reverb.
++	void SetDownstream(I_SendTarget *downstream, fixed sendLevel) {
++		downstream_ = downstream;
++		downstreamSend_ = sendLevel;
++	}
++
++	virtual void Accumulate(fixed *buffer, int samplecount, fixed sendLevel) {
++		if (sendLevel <= 0) return;
++
++		ensureAccumulatorSize(samplecount);
++
++		for (int i = 0; i < samplecount * 2; i++) {
++			accumulator_[i] = fp_add(accumulator_[i], fp_mul(buffer[i], sendLevel));
++		}
++	}
++
++	virtual bool Render(fixed *buffer, int samplecount) {
++		ensureAccumulatorSize(samplecount);
++
++		memcpy(buffer, accumulator_, samplecount * 2 * sizeof(fixed));
++		// consumed - clear the accumulator for the next audio callback
++		memset(accumulator_, 0, samplecount * 2 * sizeof(fixed));
++
++		if (enabled_) effect_.Process(buffer, samplecount);
++
++		if (downstream_ && downstreamSend_ > 0) {
++			downstream_->Accumulate(buffer, samplecount, downstreamSend_);
++		}
++
++		return true;
++	}
++
++	EffectClass *GetEffect() { return &effect_; }
++
++private:
++	fixed *accumulator_;
++	int accumulatorSize_; // in samples (frames), not stereo pairs
++	bool enabled_;
++	EffectClass effect_;
++
++	I_SendTarget *downstream_;
++	fixed downstreamSend_;
++
++	void ensureAccumulatorSize(int samplecount) {
++		if (accumulator_ && accumulatorSize_ >= samplecount) return;
++
++		fixed *newBuf = (fixed *)SYS_MALLOC(samplecount * 2 * sizeof(fixed));
++		memset(newBuf, 0, samplecount * 2 * sizeof(fixed));
++
++		if (accumulator_) {
++			memcpy(newBuf, accumulator_, accumulatorSize_ * 2 * sizeof(fixed));
++			SYS_FREE(accumulator_);
++		}
++
++		accumulator_ = newBuf;
++		accumulatorSize_ = samplecount;
++	}
++};
++
++#endif
+diff --git a/sources/Application/Instruments/I_Instrument.h b/sources/Application/Instruments/I_Instrument.h
+index 4a3365d..fc276cf 100644
+--- a/sources/Application/Instruments/I_Instrument.h
++++ b/sources/Application/Instruments/I_Instrument.h
+@@ -54,5 +54,12 @@ public:
+ 	  virtual void GetTableState(TableSaveState &state)=0 ;	 
+ 	  virtual void SetTableState(TableSaveState &state)=0 ;	 
+ 
++	  // FX send levels (0-255). Default to 0 (no send) so instrument types
++	  // that don't produce local audio (e.g. MIDI) don't need to implement
++	  // these - only SampleInstrument overrides them.
++	  virtual int GetSendChorus() { return 0; };
++	  virtual int GetSendDelay() { return 0; };
++	  virtual int GetSendReverb() { return 0; };
++
+ };
+ #endif
+diff --git a/sources/Application/Instruments/SampleInstrument.cpp b/sources/Application/Instruments/SampleInstrument.cpp
+index 33aca90..3f11ef1 100644
+--- a/sources/Application/Instruments/SampleInstrument.cpp
++++ b/sources/Application/Instruments/SampleInstrument.cpp
+@@ -127,6 +127,15 @@ SampleInstrument::SampleInstrument() {
+      irWet_ = new Variable("effect amount", SIP_IR_WET, 45);
+      Insert(irWet_);
+ 
++     sndChorus_ = new Variable("send chorus", SIP_SNDC, 0);
++     Insert(sndChorus_);
++
++     sndDelay_ = new Variable("send delay", SIP_SNDD, 0);
++     Insert(sndDelay_);
++
++     sndReverb_ = new Variable("send reverb", SIP_SNDR, 0);
++     Insert(sndReverb_);
++
+      // Initalize instrument's voices update list
+ 
+      for (int i = 0; i < SONG_CHANNEL_COUNT; i++) {
+diff --git a/sources/Application/Instruments/SampleInstrument.h b/sources/Application/Instruments/SampleInstrument.h
+index eadefd4..fd686df 100644
+--- a/sources/Application/Instruments/SampleInstrument.h
++++ b/sources/Application/Instruments/SampleInstrument.h
+@@ -49,6 +49,9 @@ enum SampleInstrumentLoopMode {
+ #define SIP_PRINTFX MAKE_FOURCC('P', 'R', 'F', 'X')
+ #define SIP_IR_PAD MAKE_FOURCC('I', 'R', 'P', 'D')
+ #define SIP_IR_WET MAKE_FOURCC('I', 'R', 'W', 'T')
++#define SIP_SNDC			MAKE_FOURCC('S','N','D','C')
++#define SIP_SNDD			MAKE_FOURCC('S','N','D','D')
++#define SIP_SNDR			MAKE_FOURCC('S','N','D','R')
+ 
+ #define FB_BUFFER_LENGTH 3500 // (in samples)
+ 
+@@ -73,6 +76,10 @@ public:
+ 	   virtual void GetTableState(TableSaveState &state) ;	 
+ 	   virtual void SetTableState(TableSaveState &state) ;	 
+ 
++	   virtual int GetSendChorus() { return sndChorus_->GetInt(); };
++	   virtual int GetSendDelay() { return sndDelay_->GetInt(); };
++	   virtual int GetSendReverb() { return sndReverb_->GetInt(); };
++
+ 	   bool IsMulti() ;
+ 
+ 	  // Engine playback  start callback
+@@ -135,6 +142,9 @@ private:
+        Variable *printFx_;
+        Variable *irPad_;
+        Variable *irWet_;
++       Variable *sndChorus_;
++       Variable *sndDelay_;
++       Variable *sndReverb_;
+ 
+        static bool useDirtyDownsampling_;
+        char *fxPresets[4];
+diff --git a/sources/Application/Mixer/MixerService.h b/sources/Application/Mixer/MixerService.h
+index 0703b63..d2407aa 100644
+--- a/sources/Application/Mixer/MixerService.h
++++ b/sources/Application/Mixer/MixerService.h
+@@ -19,7 +19,7 @@ enum MixerServiceRenderMode {
+     MSRM_STEMS,
+ };
+ 
+-#define MAX_BUS_COUNT 10
++#define MAX_BUS_COUNT 12
+ 
+ class MixerService: 
+       public T_Singleton<MixerService>,
+diff --git a/sources/Application/Model/EffectsSettings.cpp b/sources/Application/Model/EffectsSettings.cpp
+new file mode 100644
+index 0000000..5229fae
+--- /dev/null
++++ b/sources/Application/Model/EffectsSettings.cpp
+@@ -0,0 +1,111 @@
++#include "EffectsSettings.h"
++#include "Application/Effects/SendBuses.h"
++#include "Application/Utils/fixed.h"
++#include <string.h>
++
++EffectsSettings::EffectsSettings():Persistent("EFFECTS") {
++
++	modDepth_ = new Variable("mod depth", EFP_MOD_DEPTH, 68, 255);
++	Insert(modDepth_);
++	modRate_ = new Variable("mod rate", EFP_MOD_RATE, 28, 255);
++	Insert(modRate_);
++	modWidth_ = new Variable("mod width", EFP_MOD_WIDTH, 255, 255);
++	Insert(modWidth_);
++	modRevSend_ = new Variable("mod reverb send", EFP_MOD_REVSEND, 0, 255);
++	Insert(modRevSend_);
++
++	delTimeL_ = new Variable("delay time L", EFP_DEL_TIMEL, 53, 255);
++	Insert(delTimeL_);
++	delTimeR_ = new Variable("delay time R", EFP_DEL_TIMER, 53, 255);
++	Insert(delTimeR_);
++	delFeedback_ = new Variable("delay feedback", EFP_DEL_FEEDBACK, 94, 255);
++	Insert(delFeedback_);
++	delWidth_ = new Variable("delay width", EFP_DEL_WIDTH, 255, 255);
++	Insert(delWidth_);
++	delRevSend_ = new Variable("delay reverb send", EFP_DEL_REVSEND, 0, 255);
++	Insert(delRevSend_);
++
++	revRoomSize_ = new Variable("reverb room size", EFP_REV_ROOMSIZE, 128, 255);
++	Insert(revRoomSize_);
++	revDecay_ = new Variable("reverb decay", EFP_REV_DECAY, 128, 255);
++	Insert(revDecay_);
++	revModDepth_ = new Variable("reverb mod depth", EFP_REV_MODDEPTH, 0, 255);
++	Insert(revModDepth_);
++	revModRate_ = new Variable("reverb mod rate", EFP_REV_MODRATE, 20, 255);
++	Insert(revModRate_);
++	revWidth_ = new Variable("reverb width", EFP_REV_WIDTH, 255, 255);
++	Insert(revWidth_);
++}
++
++EffectsSettings::~EffectsSettings() {
++}
++
++void EffectsSettings::Clear() {
++	modDepth_->SetInt(68);
++	modRate_->SetInt(28);
++	modWidth_->SetInt(255);
++	modRevSend_->SetInt(0);
++
++	delTimeL_->SetInt(53);
++	delTimeR_->SetInt(53);
++	delFeedback_->SetInt(94);
++	delWidth_->SetInt(255);
++	delRevSend_->SetInt(0);
++
++	revRoomSize_->SetInt(128);
++	revDecay_->SetInt(128);
++	revModDepth_->SetInt(0);
++	revModRate_->SetInt(20);
++	revWidth_->SetInt(255);
++}
++
++void EffectsSettings::Apply() {
++	ChorusEffect *chorus = ChorusBus::GetInstance()->GetEffect();
++	chorus->SetDepthMs((modDepth_->GetInt() / 255.0f) * 15.0f);
++	chorus->SetRateHz(0.05f + (modRate_->GetInt() / 255.0f) * 4.95f);
++	chorus->SetWidth(fl2fp(modWidth_->GetInt() / 255.0f));
++
++	DelayEffect *delay = DelayBus::GetInstance()->GetEffect();
++	delay->SetTimeMsL(1 + (int)((delTimeL_->GetInt() / 255.0f) * 1199.0f));
++	delay->SetTimeMsR(1 + (int)((delTimeR_->GetInt() / 255.0f) * 1199.0f));
++	delay->SetFeedback(fl2fp((delFeedback_->GetInt() / 255.0f) * 0.95f));
++	delay->SetWidth(fl2fp(delWidth_->GetInt() / 255.0f));
++
++	ReverbEffect *reverb = ReverbBus::GetInstance()->GetEffect();
++	reverb->SetRoomSize((int)((revRoomSize_->GetInt() / 255.0f) * 100.0f));
++	reverb->SetDamping((int)((revDecay_->GetInt() / 255.0f) * 100.0f));
++	reverb->SetModDepth((int)((revModDepth_->GetInt() / 255.0f) * 100.0f));
++	reverb->SetModRateHz(0.05f + (revModRate_->GetInt() / 255.0f) * 1.95f);
++	reverb->SetWidth(fl2fp(revWidth_->GetInt() / 255.0f));
++
++	// cross-feed: chorus and delay can each send some of their own
++	// processed output into the reverb bus, in addition to their own
++	// direct output to master (M8-style "reverb send" per effect)
++	ChorusBus::GetInstance()->SetDownstream(ReverbBus::GetInstance(), fl2fp(modRevSend_->GetInt() / 255.0f));
++	DelayBus::GetInstance()->SetDownstream(ReverbBus::GetInstance(), fl2fp(delRevSend_->GetInt() / 255.0f));
++}
++
++void EffectsSettings::SaveContent(TiXmlNode *node) {
++	IteratorPtr<Variable> it(GetIterator());
++	for (it->Begin(); !it->IsDone(); it->Next()) {
++		Variable &v = it->CurrentItem();
++		TiXmlElement param("PARAM");
++		param.SetAttribute("NAME", v.GetName());
++		param.SetAttribute("VALUE", v.GetString());
++		node->InsertEndChild(param);
++	}
++}
++
++void EffectsSettings::RestoreContent(TiXmlElement *element) {
++	TiXmlElement *current = element->FirstChildElement();
++	while (current) {
++		const char *name = current->Attribute("NAME");
++		const char *value = current->Attribute("VALUE");
++		if (name && value) {
++			Variable *v = FindVariable(name);
++			if (v) v->SetString(value);
++		}
++		current = current->NextSiblingElement();
++	}
++	Apply();
++}
+diff --git a/sources/Application/Model/EffectsSettings.h b/sources/Application/Model/EffectsSettings.h
+new file mode 100644
+index 0000000..294852a
+--- /dev/null
++++ b/sources/Application/Model/EffectsSettings.h
+@@ -0,0 +1,63 @@
++#ifndef _EFFECTS_SETTINGS_H_
++#define _EFFECTS_SETTINGS_H_
++
++#include "Foundation/T_Singleton.h"
++#include "Foundation/Variables/VariableContainer.h"
++#include "Application/Persistency/Persistent.h"
++
++// Parameter FourCCs for the three parallel FX send buses (chorus/delay/
++// reverb). These are global effect settings, not tied to any instrument or
++// track - one shared chorus, one shared delay, one shared reverb, matching
++// how the sends themselves work (see SIP_SNDC/SNDD/SNDR on SampleInstrument).
++#define EFP_MOD_DEPTH   MAKE_FOURCC('M','D','E','P')
++#define EFP_MOD_RATE    MAKE_FOURCC('M','R','A','T')
++#define EFP_MOD_WIDTH   MAKE_FOURCC('M','W','I','D')
++#define EFP_MOD_REVSEND MAKE_FOURCC('M','R','V','S')
++
++#define EFP_DEL_TIMEL   MAKE_FOURCC('D','T','M','L')
++#define EFP_DEL_TIMER   MAKE_FOURCC('D','T','M','R')
++#define EFP_DEL_FEEDBACK MAKE_FOURCC('D','F','B','K')
++#define EFP_DEL_WIDTH   MAKE_FOURCC('D','W','I','D')
++#define EFP_DEL_REVSEND MAKE_FOURCC('D','R','V','S')
++
++#define EFP_REV_ROOMSIZE MAKE_FOURCC('R','R','M','S')
++#define EFP_REV_DECAY   MAKE_FOURCC('R','D','C','Y')
++#define EFP_REV_MODDEPTH MAKE_FOURCC('R','M','D','P')
++#define EFP_REV_MODRATE MAKE_FOURCC('R','M','R','T')
++#define EFP_REV_WIDTH   MAKE_FOURCC('R','W','I','D')
++
++class EffectsSettings: public T_Singleton<EffectsSettings>, public VariableContainer, public Persistent {
++public:
++	EffectsSettings();
++	~EffectsSettings();
++
++	void Clear();
++
++	// Applies the current parameter values to the actual DSP effect
++	// instances / send buses. Called once at startup and whenever a
++	// parameter changes (see EffectView).
++	void Apply();
++
++	virtual void SaveContent(TiXmlNode *node);
++	virtual void RestoreContent(TiXmlElement *element);
++
++private:
++	Variable *modDepth_;
++	Variable *modRate_;
++	Variable *modWidth_;
++	Variable *modRevSend_;
++
++	Variable *delTimeL_;
++	Variable *delTimeR_;
++	Variable *delFeedback_;
++	Variable *delWidth_;
++	Variable *delRevSend_;
++
++	Variable *revRoomSize_;
++	Variable *revDecay_;
++	Variable *revModDepth_;
++	Variable *revModRate_;
++	Variable *revWidth_;
++};
++
++#endif
+diff --git a/sources/Application/Player/PlayerChannel.cpp b/sources/Application/Player/PlayerChannel.cpp
+index 7efb660..7dd0a4b 100644
+--- a/sources/Application/Player/PlayerChannel.cpp
++++ b/sources/Application/Player/PlayerChannel.cpp
+@@ -4,6 +4,7 @@
+ #include "Application/Model/Mixer.h"
+ #include "Application/Player/SyncMaster.h"
+ #include "Application/Utils/fixed.h"
++#include "Application/Effects/SendBuses.h"
+ #include <math.h>
+ 
+ PlayerChannel::PlayerChannel(int index) {             
+@@ -93,6 +94,25 @@ bool PlayerChannel::Render(fixed *buffer,int samplecount) {
+                  buffer[i] = fp_mul(buffer[i], volume_);
+              }
+          }
++
++         // Send a post-fader copy to each of the three parallel FX buses,
++         // scaled by however much THIS INSTRUMENT wants to send to each
++         // (SNDC/SNDD/SNDR on the instrument, not a per-track control)
++         if (instr_) {
++             int sendChorus = instr_->GetSendChorus();
++             int sendDelay = instr_->GetSendDelay();
++             int sendReverb = instr_->GetSendReverb();
++
++             if (sendChorus > 0) {
++                 ChorusBus::GetInstance()->Accumulate(buffer, samplecount, fl2fp(sendChorus / 255.0f));
++             }
++             if (sendDelay > 0) {
++                 DelayBus::GetInstance()->Accumulate(buffer, samplecount, fl2fp(sendDelay / 255.0f));
++             }
++             if (sendReverb > 0) {
++                 ReverbBus::GetInstance()->Accumulate(buffer, samplecount, fl2fp(sendReverb / 255.0f));
++             }
++         }
+      }
+      return (status && !muted_);
+    } else {
+diff --git a/sources/Application/Player/PlayerMixer.cpp b/sources/Application/Player/PlayerMixer.cpp
+index 12e049b..b818e56 100644
+--- a/sources/Application/Player/PlayerMixer.cpp
++++ b/sources/Application/Player/PlayerMixer.cpp
+@@ -1,6 +1,8 @@
+ #include "PlayerMixer.h"
+ #include "Application/Mixer/MixerService.h"
+ #include "Application/Model/Mixer.h"
++#include "Application/Model/EffectsSettings.h"
++#include "Application/Effects/SendBuses.h"
+ #include "Application/Utils/char.h"
+ #include "Application/Utils/fixed.h"
+ #include "Services/Midi/MidiService.h"
+@@ -29,6 +31,23 @@ bool PlayerMixer::Init(Project *project) {
+ 	AudioMixer *mixer=ms->GetMixBus(STREAM_MIX_BUS) ;
+ 	mixer->Insert(fileStreamer_) ;
+ 
++	// Three independent parallel FX send buses (chorus, delay, reverb).
++	// Instruments accumulate into these directly (see PlayerChannel::Render);
++	// each is summed into master on its own, like separate aux sends.
++	ChorusBus *chorusBus=ChorusBus::GetInstance() ;
++	chorusBus->Init() ;
++	ms->GetMixBus(FX_CHORUS_BUS)->Insert(*chorusBus) ;
++
++	DelayBus *delayBus=DelayBus::GetInstance() ;
++	delayBus->Init() ;
++	ms->GetMixBus(FX_DELAY_BUS)->Insert(*delayBus) ;
++
++	ReverbBus *reverbBus=ReverbBus::GetInstance() ;
++	reverbBus->Init() ;
++	ms->GetMixBus(FX_REVERB_BUS)->Insert(*reverbBus) ;
++
++	EffectsSettings::GetInstance()->Apply() ;
++
+ 	project_=project ;
+ 
+ 	// Init states
+diff --git a/sources/Application/Player/PlayerMixer.h b/sources/Application/Player/PlayerMixer.h
+index 03ac590..89db7b5 100644
+--- a/sources/Application/Player/PlayerMixer.h
++++ b/sources/Application/Player/PlayerMixer.h
+@@ -12,6 +12,9 @@
+ #include "Services/Audio/AudioOut.h"
+ 
+ #define STREAM_MIX_BUS 8
++#define FX_CHORUS_BUS 9
++#define FX_DELAY_BUS 10
++#define FX_REVERB_BUS 11
+ 
+ class PlayerMixer: public T_Singleton<PlayerMixer>,public Observable,public I_Observer {
+ public:
+diff --git a/sources/Application/Views/BaseClasses/View.cpp b/sources/Application/Views/BaseClasses/View.cpp
+index 2b6fdef..ded3de5 100644
+--- a/sources/Application/Views/BaseClasses/View.cpp
++++ b/sources/Application/Views/BaseClasses/View.cpp
+@@ -94,6 +94,10 @@ void View::drawMap() {
+ 		pos._y++ ;		
+ 		//row3
+         sprintf(buffer, " MTT");
++        DrawString(pos._x,pos._y,buffer,props) ;
++		pos._y++ ;
++		//row4
++        sprintf(buffer, "X   ");
+         DrawString(pos._x,pos._y,buffer,props) ;
+ 
+ 		//draw current screen on map
+@@ -138,6 +142,9 @@ void View::drawMap() {
+ 			pos._y+=2;
+ 	        DrawString(pos._x,pos._y,"M",props) ;
+ 			break;
++        case VT_EFFECT:
++	        DrawString(pos._x,pos._y+3,"X",props) ;
++			break;
+ 		default: //VT_SONG
+ 			pos._y+=1;
+ 	        DrawString(pos._x,pos._y,"S",props) ;
+diff --git a/sources/Application/Views/BaseClasses/View.h b/sources/Application/Views/BaseClasses/View.h
+index e1508ff..cd3e99e 100644
+--- a/sources/Application/Views/BaseClasses/View.h
++++ b/sources/Application/Views/BaseClasses/View.h
+@@ -44,7 +44,8 @@ enum ViewType {
+     VT_TABLE,  // Table screen under phrase
+     VT_TABLE2, // Table screen under instrument
+     VT_GROOVE,
+-    VT_MIXER
++    VT_MIXER,
++    VT_EFFECT  // Effect settings screen under mixer
+ };
+ 
+ enum ViewMode {
+@@ -91,6 +92,8 @@ class View : public Observable {
+         OnFocus();
+     };
+ 
++    ViewType GetViewType() { return viewType_; };
++
+     void LooseFocus() { hasFocus_ = false; };
+ 
+     void Clear();
+diff --git a/sources/Application/Views/EffectView.cpp b/sources/Application/Views/EffectView.cpp
+new file mode 100644
+index 0000000..2f92be7
+--- /dev/null
++++ b/sources/Application/Views/EffectView.cpp
+@@ -0,0 +1,145 @@
++#include "EffectView.h"
++#include "BaseClasses/UIStaticField.h"
++#include "BaseClasses/UIIntVarField.h"
++#include "Application/Model/EffectsSettings.h"
++#include "Application/AppWindow.h"
++
++EffectView::EffectView(GUIWindow &w, ViewData *data):FieldView(w, data) {
++
++	EffectsSettings *fx = EffectsSettings::GetInstance();
++	GUIPoint position = GetAnchor();
++	Variable *v;
++	UIIntVarField *f1;
++	UIStaticField *sf;
++
++	// Single column - FieldView's up/down navigation only compares vertical
++	// position, so a real multi-column layout can't be navigated correctly
++	// with up/down; everything lives in one list, top to bottom.
++
++	sf = new UIStaticField(position, "MODFX (chorus)");
++	T_SimpleList<UIField>::Insert(sf);
++
++	position._y += 1;
++	v = fx->FindVariable(EFP_MOD_DEPTH);
++	f1 = new UIIntVarField(position, *v, "mod depth: %2.2X", 0, 0xFF, 1, 0x10);
++	T_SimpleList<UIField>::Insert(f1);
++	f1->SetFocus();
++
++	position._y += 1;
++	v = fx->FindVariable(EFP_MOD_RATE);
++	f1 = new UIIntVarField(position, *v, "mod rate: %2.2X", 0, 0xFF, 1, 0x10);
++	T_SimpleList<UIField>::Insert(f1);
++
++	position._y += 1;
++	v = fx->FindVariable(EFP_MOD_WIDTH);
++	f1 = new UIIntVarField(position, *v, "mod width: %2.2X", 0, 0xFF, 1, 0x10);
++	T_SimpleList<UIField>::Insert(f1);
++
++	position._y += 1;
++	v = fx->FindVariable(EFP_MOD_REVSEND);
++	f1 = new UIIntVarField(position, *v, "mod->rvb: %2.2X", 0, 0xFF, 1, 0x10);
++	T_SimpleList<UIField>::Insert(f1);
++
++	position._y += 2;
++	sf = new UIStaticField(position, "DELAY");
++	T_SimpleList<UIField>::Insert(sf);
++
++	position._y += 1;
++	v = fx->FindVariable(EFP_DEL_TIMEL);
++	f1 = new UIIntVarField(position, *v, "dly time L: %2.2X", 0, 0xFF, 1, 0x10);
++	T_SimpleList<UIField>::Insert(f1);
++
++	position._y += 1;
++	v = fx->FindVariable(EFP_DEL_TIMER);
++	f1 = new UIIntVarField(position, *v, "dly time R: %2.2X", 0, 0xFF, 1, 0x10);
++	T_SimpleList<UIField>::Insert(f1);
++
++	position._y += 1;
++	v = fx->FindVariable(EFP_DEL_FEEDBACK);
++	f1 = new UIIntVarField(position, *v, "dly feedback: %2.2X", 0, 0xFF, 1, 0x10);
++	T_SimpleList<UIField>::Insert(f1);
++
++	position._y += 1;
++	v = fx->FindVariable(EFP_DEL_WIDTH);
++	f1 = new UIIntVarField(position, *v, "dly width: %2.2X", 0, 0xFF, 1, 0x10);
++	T_SimpleList<UIField>::Insert(f1);
++
++	position._y += 1;
++	v = fx->FindVariable(EFP_DEL_REVSEND);
++	f1 = new UIIntVarField(position, *v, "dly->rvb: %2.2X", 0, 0xFF, 1, 0x10);
++	T_SimpleList<UIField>::Insert(f1);
++
++	position._y += 2;
++	sf = new UIStaticField(position, "REVERB");
++	T_SimpleList<UIField>::Insert(sf);
++
++	position._y += 1;
++	v = fx->FindVariable(EFP_REV_ROOMSIZE);
++	f1 = new UIIntVarField(position, *v, "room size: %2.2X", 0, 0xFF, 1, 0x10);
++	T_SimpleList<UIField>::Insert(f1);
++
++	position._y += 1;
++	v = fx->FindVariable(EFP_REV_DECAY);
++	f1 = new UIIntVarField(position, *v, "decay: %2.2X", 0, 0xFF, 1, 0x10);
++	T_SimpleList<UIField>::Insert(f1);
++
++	position._y += 1;
++	v = fx->FindVariable(EFP_REV_MODDEPTH);
++	f1 = new UIIntVarField(position, *v, "mod depth: %2.2X", 0, 0xFF, 1, 0x10);
++	T_SimpleList<UIField>::Insert(f1);
++
++	position._y += 1;
++	v = fx->FindVariable(EFP_REV_MODRATE);
++	f1 = new UIIntVarField(position, *v, "mod rate: %2.2X", 0, 0xFF, 1, 0x10);
++	T_SimpleList<UIField>::Insert(f1);
++
++	position._y += 1;
++	v = fx->FindVariable(EFP_REV_WIDTH);
++	f1 = new UIIntVarField(position, *v, "width: %2.2X", 0, 0xFF, 1, 0x10);
++	T_SimpleList<UIField>::Insert(f1);
++}
++
++EffectView::~EffectView() {
++}
++
++void EffectView::ProcessButtonMask(unsigned short mask, bool pressed) {
++
++	if (!pressed) return;
++
++	isDirty_ = false;
++
++	FieldView::ProcessButtonMask(mask);
++
++	// R + UP = back to the Mixer page
++	if (mask & EPBM_R) {
++		if (mask & EPBM_UP) {
++			ViewType vt = VT_MIXER;
++			ViewEvent ve(VET_SWITCH_VIEW, &vt);
++			SetChanged();
++			NotifyObservers(&ve);
++		}
++	}
++}
++
++void EffectView::DrawView() {
++
++	Clear();
++	View::EnableNotification();
++
++	GUITextProperties props;
++	GUIPoint pos = GetTitlePosition();
++
++	SetColor(CD_NORMAL);
++	DrawString(pos._x, pos._y, "Effect Settings", props);
++
++	// Push any edited values straight to the DSP - cheap, so just do it
++	// unconditionally every draw rather than trying to track exactly which
++	// field changed.
++	EffectsSettings::GetInstance()->Apply();
++
++	FieldView::Redraw();
++	drawMap();
++}
++
++void EffectView::OnFocus() {
++}
+diff --git a/sources/Application/Views/EffectView.h b/sources/Application/Views/EffectView.h
+new file mode 100644
+index 0000000..8637073
+--- /dev/null
++++ b/sources/Application/Views/EffectView.h
+@@ -0,0 +1,18 @@
++#ifndef _EFFECT_VIEW_H_
++#define _EFFECT_VIEW_H_
++
++#include "BaseClasses/FieldView.h"
++#include "ViewData.h"
++
++class EffectView: public FieldView {
++public:
++	EffectView(GUIWindow &w, ViewData *data);
++	virtual ~EffectView();
++
++	virtual void ProcessButtonMask(unsigned short mask, bool pressed);
++	virtual void DrawView();
++	virtual void OnPlayerUpdate(PlayerEventType, unsigned int) {};
++	virtual void OnFocus();
++};
++
++#endif
+diff --git a/sources/Application/Views/InstrumentView.cpp b/sources/Application/Views/InstrumentView.cpp
+index c3b96cc..f26fca9 100644
+--- a/sources/Application/Views/InstrumentView.cpp
++++ b/sources/Application/Views/InstrumentView.cpp
+@@ -116,6 +116,26 @@ void InstrumentView::fillSampleParameters() {
+ 	f1=new UIIntVarField(position,*v,"pan: %2.2X",0,0xFE,1,0x10) ;
+ 	T_SimpleList<UIField>::Insert(f1) ;
+ 
++	position._y+=2 ;
++	UIStaticField *sendLabel=new UIStaticField(position,"snd c/d/r: ") ;
++	T_SimpleList<UIField>::Insert(sendLabel) ;
++
++	position._x+=13 ;
++	v=instrument->FindVariable(SIP_SNDC) ;
++	f1=new UIIntVarField(position,*v,"%2.2X",0,0xFF,1,0x10) ;
++	T_SimpleList<UIField>::Insert(f1) ;
++
++	position._x+=3 ;
++	v=instrument->FindVariable(SIP_SNDD) ;
++	f1=new UIIntVarField(position,*v,"%2.2X",0,0xFF,1,0x10) ;
++	T_SimpleList<UIField>::Insert(f1) ;
++
++	position._x+=3 ;
++	v=instrument->FindVariable(SIP_SNDR) ;
++	f1=new UIIntVarField(position,*v,"%2.2X",0,0xFF,1,0x10) ;
++	T_SimpleList<UIField>::Insert(f1) ;
++	position._x-=19 ;
++
+ 	position._y+=1 ;
+ 	v=instrument->FindVariable(SIP_ROOTNOTE) ;
+ 	f1=new UINoteVarField(position,*v,"root note: %s",0,0x7F,1,0x0C) ;
+diff --git a/sources/Application/Views/MixerView.cpp b/sources/Application/Views/MixerView.cpp
+index 1dfd45a..1cfaadb 100644
+--- a/sources/Application/Views/MixerView.cpp
++++ b/sources/Application/Views/MixerView.cpp
+@@ -138,6 +138,12 @@ void MixerView::processNormalButtonMask(unsigned int mask) {
+             viewData_->songX_ = viewData_->mixerCol_;
+             SetChanged();
+             NotifyObservers(&ve);
++        } else if (mask & EPBM_DOWN) {
++            // R + DOWN = go to Effect Settings (chorus/delay/reverb params)
++            ViewType vt = VT_EFFECT;
++            ViewEvent ve(VET_SWITCH_VIEW, &vt);
++            SetChanged();
++            NotifyObservers(&ve);
+         } else if (mask & EPBM_RIGHT) {
+             ViewType vt = VT_TABLE;
+             ViewEvent ve(VET_SWITCH_VIEW, &vt);
+@@ -341,15 +347,7 @@ void MixerView::DrawView() {
+ 
+ 	SetColor(CD_NORMAL) ;
+ 
+-    Player *player = Player::GetInstance();
+-
+-    std::ostringstream os;
+-
+-    os << ((player->GetSequencerMode() == SM_SONG) ? "Song" : "Live");
+-
+-    std::string buffer(os.str());
+-
+-    DrawString(pos._x, pos._y, buffer.c_str(), props);
++    DrawString(pos._x, pos._y, "Mixer", props);
+ 
+     // Draw mixer grid with row labels
+     pos = anchor;
+@@ -482,11 +480,12 @@ void MixerView::DrawView() {
+         pos._x += dx;
+     }
+ 
++    // Row 4: FX Send amount
+     drawMap() ;
+ 	drawNotes() ;
+     EnableNotification();
+ 
+-    if (player->IsRunning()) {
++    if (Player::GetInstance()->IsRunning()) {
+         OnPlayerUpdate(PET_UPDATE);
+     }
+ 
+diff --git a/sources/Application/Views/MixerView.h b/sources/Application/Views/MixerView.h
+index 4c71b34..795c892 100644
+--- a/sources/Application/Views/MixerView.h
++++ b/sources/Application/Views/MixerView.h
+@@ -13,6 +13,7 @@ public:
+ 	virtual void OnPlayerUpdate(PlayerEventType ,unsigned int tick=0) ;
+     virtual void AnimationUpdate();
+     virtual void OnFocus() ;
++    void SetPreviousViewType(ViewType vt) { previousViewType_ = vt; };
+ protected:
+ 	void processNormalButtonMask(unsigned int mask) ;
+     void processSelectionButtonMask(unsigned int mask) ;
+diff --git a/sources/Services/Audio/AudioMixer.cpp b/sources/Services/Audio/AudioMixer.cpp
+index 125d7e0..83b5cfd 100644
+--- a/sources/Services/Audio/AudioMixer.cpp
++++ b/sources/Services/Audio/AudioMixer.cpp
+@@ -109,9 +109,14 @@ bool AudioMixer::Render(fixed *buffer,int samplecount) {
+              if (left > preVolumePeakL) preVolumePeakL = left;
+              if (right > preVolumePeakR) preVolumePeakR = right;
+          }
+-         // Pack and store pre-volume peaks
+-         unsigned int prePackedL = (unsigned int)fp2i(preVolumePeakL);
+-         unsigned int prePackedR = (unsigned int)fp2i(preVolumePeakR);
++         // Pack and store pre-volume peaks. preVolumePeakL/R are fixed-point
++         // (Q16.15) samples already numerically in 0..32768 range for
++         // 0..full-scale amplitude, which is exactly the 16-bit peak range
++         // we want here - do NOT run them through fp2i() (that extracts the
++         // integer part of a fixed value, i.e. divides by 32768, collapsing
++         // any normal-level signal down to 0).
++         unsigned int prePackedL = (unsigned int)preVolumePeakL;
++         unsigned int prePackedR = (unsigned int)preVolumePeakR;
+          if (prePackedL > 0xFFFF) prePackedL = 0xFFFF;
+          if (prePackedR > 0xFFFF) prePackedR = 0xFFFF;
+          preMasterVolumePeakLevel_ = (prePackedL << 16) | prePackedR;
+@@ -139,9 +144,10 @@ bool AudioMixer::Render(fixed *buffer,int samplecount) {
+              if (right > peakR) peakR = right;
+          }
+ 
+-         // left 16 bits | right 16 bits, clamped to 16-bit range
+-         unsigned int packedL = (unsigned int)fp2i(peakL);
+-         unsigned int packedR = (unsigned int)fp2i(peakR);
++         // left 16 bits | right 16 bits, clamped to 16-bit range (see note
++         // above - use the raw fixed value directly, not fp2i())
++         unsigned int packedL = (unsigned int)peakL;
++         unsigned int packedR = (unsigned int)peakR;
+          if (packedL > 0xFFFF) packedL = 0xFFFF;
+          if (packedR > 0xFFFF) packedR = 0xFFFF;
+          peakMixerLevel_ = (packedL << 16) | packedR;

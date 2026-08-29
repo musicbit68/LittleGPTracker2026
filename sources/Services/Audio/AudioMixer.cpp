@@ -109,9 +109,14 @@ bool AudioMixer::Render(fixed *buffer,int samplecount) {
              if (left > preVolumePeakL) preVolumePeakL = left;
              if (right > preVolumePeakR) preVolumePeakR = right;
          }
-         // Pack and store pre-volume peaks
-         unsigned int prePackedL = (unsigned int)fp2i(preVolumePeakL);
-         unsigned int prePackedR = (unsigned int)fp2i(preVolumePeakR);
+         // Pack and store pre-volume peaks. preVolumePeakL/R are fixed-point
+         // (Q16.15) samples already numerically in 0..32768 range for
+         // 0..full-scale amplitude, which is exactly the 16-bit peak range
+         // we want here - do NOT run them through fp2i() (that extracts the
+         // integer part of a fixed value, i.e. divides by 32768, collapsing
+         // any normal-level signal down to 0).
+         unsigned int prePackedL = (unsigned int)preVolumePeakL;
+         unsigned int prePackedR = (unsigned int)preVolumePeakR;
          if (prePackedL > 0xFFFF) prePackedL = 0xFFFF;
          if (prePackedR > 0xFFFF) prePackedR = 0xFFFF;
          preMasterVolumePeakLevel_ = (prePackedL << 16) | prePackedR;
@@ -139,9 +144,10 @@ bool AudioMixer::Render(fixed *buffer,int samplecount) {
              if (right > peakR) peakR = right;
          }
 
-         // left 16 bits | right 16 bits, clamped to 16-bit range
-         unsigned int packedL = (unsigned int)fp2i(peakL);
-         unsigned int packedR = (unsigned int)fp2i(peakR);
+         // left 16 bits | right 16 bits, clamped to 16-bit range (see note
+         // above - use the raw fixed value directly, not fp2i())
+         unsigned int packedL = (unsigned int)peakL;
+         unsigned int packedR = (unsigned int)peakR;
          if (packedL > 0xFFFF) packedL = 0xFFFF;
          if (packedR > 0xFFFF) packedR = 0xFFFF;
          peakMixerLevel_ = (packedL << 16) | packedR;

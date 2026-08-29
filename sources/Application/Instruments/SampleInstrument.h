@@ -49,6 +49,9 @@ enum SampleInstrumentLoopMode {
 #define SIP_PRINTFX MAKE_FOURCC('P', 'R', 'F', 'X')
 #define SIP_IR_PAD MAKE_FOURCC('I', 'R', 'P', 'D')
 #define SIP_IR_WET MAKE_FOURCC('I', 'R', 'W', 'T')
+#define SIP_SNDC			MAKE_FOURCC('S','N','D','C')
+#define SIP_SNDD			MAKE_FOURCC('S','N','D','D')
+#define SIP_SNDR			MAKE_FOURCC('S','N','D','R')
 
 #define FB_BUFFER_LENGTH 3500 // (in samples)
 
@@ -72,6 +75,10 @@ public:
 	   virtual bool GetTableAutomation();
 	   virtual void GetTableState(TableSaveState &state) ;	 
 	   virtual void SetTableState(TableSaveState &state) ;	 
+
+	   virtual int GetSendChorus() { return sndChorus_->GetInt(); };
+	   virtual int GetSendDelay() { return sndDelay_->GetInt(); };
+	   virtual int GetSendReverb() { return sndReverb_->GetInt(); };
 
 	   bool IsMulti() ;
 
@@ -135,6 +142,9 @@ private:
        Variable *printFx_;
        Variable *irPad_;
        Variable *irWet_;
+       Variable *sndChorus_;
+       Variable *sndDelay_;
+       Variable *sndReverb_;
 
        static bool useDirtyDownsampling_;
        char *fxPresets[4];

@@ -46,6 +46,7 @@ COMMONDIRS := \
 	../sources/Application/Utils \
 	../sources/Application/Player \
 	../sources/Application/Mixer \
+	../sources/Application/Effects \
 	../sources/Application/Instruments \
 	../sources/Application/Persistency \
 	../sources/Foundation \
@@ -230,7 +231,7 @@ COMMONFILES := \
 	MidiChannel.o MidiInMerger.o \
 	GUIEvent.o GUIRect.o \
 	EventManager.o GUIWindow.o \
-	Channel.o Mixer.o \
+	Channel.o Mixer.o EffectsSettings.o \
 	ControlRoom.o \
 	MultiChannelAdapter.o \
 	CommandDispatcher.o \
@@ -247,7 +248,7 @@ COMMONFILES := \
 	Application.o AppWindow.o SelectProjectDialog.o \
 	NewProjectDialog.o \
 	ImportSampleDialog.o \
-	MixerView.o NullView.o \
+	MixerView.o NullView.o EffectView.o \
 	SongView.o ChainView.o PhraseView.o ViewData.o ConsoleView.o ProjectView.o InstrumentView.o UIController.o \
 	View.o ModalView.o FieldView.o UIField.o UIIntField.o \
 	UIIntVarOffField.o UIIntVarField.o ViewEvent.o I_Action.o\
@@ -266,6 +267,7 @@ COMMONFILES := \
 	AudioOut.o \
 	DummyAudioOut.o PlayerChannel.o AudioFileStreamer.o \
 	MixBus.o \
+	DelayEffect.o ChorusEffect.o ReverbEffect.o \
 	MixerService.o PlayerMixer.o \
 	Service.o ServiceRegistry.o SubService.o \
 	Variable.o VariableContainer.o WatchedVariable.o \

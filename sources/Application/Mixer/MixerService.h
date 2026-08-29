@@ -19,7 +19,7 @@ enum MixerServiceRenderMode {
     MSRM_STEMS,
 };
 
-#define MAX_BUS_COUNT 10
+#define MAX_BUS_COUNT 12
 
 class MixerService: 
       public T_Singleton<MixerService>,

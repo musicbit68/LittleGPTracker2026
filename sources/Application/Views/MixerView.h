@@ -13,6 +13,7 @@ public:
 	virtual void OnPlayerUpdate(PlayerEventType ,unsigned int tick=0) ;
     virtual void AnimationUpdate();
     virtual void OnFocus() ;
+    void SetPreviousViewType(ViewType vt) { previousViewType_ = vt; };
 protected:
 	void processNormalButtonMask(unsigned int mask) ;
     void processSelectionButtonMask(unsigned int mask) ;

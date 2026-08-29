@@ -84,6 +84,7 @@ AppWindow::AppWindow(I_GUIWindowImp &imp) : GUIWindow(imp) {
     _tableView = 0;
     _nullView = 0;
     _mixerView = 0;
+    _effectView = 0;
     _grooveView = 0;
     _closeProject = 0;
     _loadAfterSaveAsProject = 0;
@@ -389,6 +390,9 @@ void AppWindow::LoadProject(const Path &p) {
     _mixerView = new MixerView((*this), _viewData);
     _mixerView->AddObserver(*this);
 
+    _effectView = new EffectView((*this), _viewData);
+    _effectView->AddObserver(*this);
+
     _currentView = _songView;
     _currentView->OnFocus();
 
@@ -558,6 +562,7 @@ void AppWindow::Update(Observable &o, I_ObservableData *d) {
 
     case VET_SWITCH_VIEW: {
         ViewType *vt = (ViewType *)ve->GetData();
+        ViewType previousType = _currentView ? _currentView->GetViewType() : VT_SONG;
         if (_currentView) {
             _currentView->LooseFocus();
         }
@@ -588,6 +593,14 @@ void AppWindow::Update(Observable &o, I_ObservableData *d) {
             break;
         case VT_MIXER:
             _currentView = _mixerView;
+            // Only Song/Chain can lead here - remember which, so R+UP
+            // from Mixer goes back to whichever one you actually came from
+            if (previousType == VT_SONG || previousType == VT_CHAIN) {
+                _mixerView->SetPreviousViewType(previousType);
+            }
+            break;
+        case VT_EFFECT:
+            _currentView = _effectView;
             break;
         }
         _currentView->SetFocus(*vt);

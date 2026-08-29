@@ -1,6 +1,8 @@
 #include "PlayerMixer.h"
 #include "Application/Mixer/MixerService.h"
 #include "Application/Model/Mixer.h"
+#include "Application/Model/EffectsSettings.h"
+#include "Application/Effects/SendBuses.h"
 #include "Application/Utils/char.h"
 #include "Application/Utils/fixed.h"
 #include "Services/Midi/MidiService.h"
@@ -28,6 +30,23 @@ bool PlayerMixer::Init(Project *project) {
 
 	AudioMixer *mixer=ms->GetMixBus(STREAM_MIX_BUS) ;
 	mixer->Insert(fileStreamer_) ;
+
+	// Three independent parallel FX send buses (chorus, delay, reverb).
+	// Instruments accumulate into these directly (see PlayerChannel::Render);
+	// each is summed into master on its own, like separate aux sends.
+	ChorusBus *chorusBus=ChorusBus::GetInstance() ;
+	chorusBus->Init() ;
+	ms->GetMixBus(FX_CHORUS_BUS)->Insert(*chorusBus) ;
+
+	DelayBus *delayBus=DelayBus::GetInstance() ;
+	delayBus->Init() ;
+	ms->GetMixBus(FX_DELAY_BUS)->Insert(*delayBus) ;
+
+	ReverbBus *reverbBus=ReverbBus::GetInstance() ;
+	reverbBus->Init() ;
+	ms->GetMixBus(FX_REVERB_BUS)->Insert(*reverbBus) ;
+
+	EffectsSettings::GetInstance()->Apply() ;
 
 	project_=project ;
 
