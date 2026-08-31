@@ -237,6 +237,12 @@ jobs:
           rm -rf lgpt-resources*
           ./resources/packaging/lgpt_package.sh
 
+      - name: Upload Miyoo build artifact
+        uses: actions/upload-artifact@v4
+        with: 
+         name: LGPT-MIYOO
+         path: ./projects/*.zip
+         
       - name: Extract Git tag name
         id: extract_tag
         run: echo "tag_name=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
