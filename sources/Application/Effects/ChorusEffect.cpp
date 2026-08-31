@@ -5,7 +5,31 @@
 
 #define CHORUS_PI 3.14159265358979323846f
 
+// Same rationale as ReverbEffect's sine table: this LFO drives sinf() on
+// EVERY sample, unconditionally (chorus is always-on by default), so a
+// precomputed table meaningfully cuts CPU cost with inaudible quantization
+// error for a slow (0.05-5Hz) LFO.
+#define CHORUS_SINE_TABLE_SIZE 512
+static float sChorusSineTable[CHORUS_SINE_TABLE_SIZE];
+static bool sChorusSineTableReady = false;
+
+static void ensureChorusSineTable() {
+	if (sChorusSineTableReady) return;
+	for (int i = 0; i < CHORUS_SINE_TABLE_SIZE; i++) {
+		sChorusSineTable[i] = sinf((2.0f * CHORUS_PI * (float)i) / (float)CHORUS_SINE_TABLE_SIZE);
+	}
+	sChorusSineTableReady = true;
+}
+
+// phase is expected in [0, 2*PI)
+static inline float chorusFastSin(float phase) {
+	int idx = (int)(phase * (CHORUS_SINE_TABLE_SIZE / (2.0f * CHORUS_PI)));
+	idx &= (CHORUS_SINE_TABLE_SIZE - 1);
+	return sChorusSineTable[idx];
+}
+
 ChorusEffect::ChorusEffect() {
+	ensureChorusSineTable();
 	bufferL_ = 0;
 	bufferR_ = 0;
 	writePos_ = 0;
@@ -13,7 +37,7 @@ ChorusEffect::ChorusEffect() {
 	lfoPhaseR_ = CHORUS_PI * 0.5f; // quadrature offset for stereo width
 	lfoIncrement_ = 2.0f * CHORUS_PI * 0.6f / (float)CHORUS_SAMPLE_RATE; // 0.6Hz default
 	depthSamples_ = ((float)CHORUS_SAMPLE_RATE * 4.0f) / 1000.0f;   // 4ms default depth
-	centerSamples_ = ((float)CHORUS_SAMPLE_RATE * 12.0f) / 1000.0f; // 12ms default center
+	centerSamples_ = ((float)CHORUS_SAMPLE_RATE * 18.0f) / 1000.0f; // 18ms default center (raised to give the depth range more room to swing before crossing zero)
 	mix_ = fl2fp(0.5f);
 	width_ = i2fp(1);
 }
@@ -83,8 +107,8 @@ void ChorusEffect::Process(fixed *buffer, int samplecount) {
 		bufferL_[writePos_] = inL;
 		bufferR_[writePos_] = inR;
 
-		float delayL = centerSamples_ + depthSamples_ * sinf(lfoPhaseL_);
-		float delayR = centerSamples_ + depthSamples_ * sinf(lfoPhaseR_);
+		float delayL = centerSamples_ + depthSamples_ * chorusFastSin(lfoPhaseL_);
+		float delayR = centerSamples_ + depthSamples_ * chorusFastSin(lfoPhaseR_);
 
 		fixed wetL = readInterpolated(bufferL_, writePos_, delayL);
 		fixed wetR = readInterpolated(bufferR_, writePos_, delayR);

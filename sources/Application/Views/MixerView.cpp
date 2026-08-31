@@ -162,10 +162,27 @@ void MixerView::processNormalButtonMask(unsigned int mask) {
         } else if (mask & EPBM_START) {
             onStop();
         }
+    } else if (mask & EPBM_SELECT) {
+        if (mask & EPBM_UP) {
+            // SELECT + UP = go back to previous view (same as R + UP)
+            ViewEvent ve(VET_SWITCH_VIEW, &previousViewType_);
+            viewData_->songX_ = viewData_->mixerCol_;
+            SetChanged();
+            NotifyObservers(&ve);
+        }
     } else if (mask & EPBM_B) {
         if (mask & EPBM_A) {
-            // B + A = cut: reset volume to full
-            Mixer::GetInstance()->SetChannelVolume(viewData_->mixerCol_, 0xFF);
+            // B + A = reset current row's value for this column:
+            // Volume row -> full volume, HPF row -> off, LPF row -> off
+            Mixer *m = Mixer::GetInstance();
+            int col = viewData_->mixerCol_;
+            if (mixerRow_ == 1) {
+                m->SetChannelVolume(col, 0xFF);
+            } else if (mixerRow_ == 2) {
+                m->SetChannelHPF(col, 0);
+            } else if (mixerRow_ == 3) {
+                m->SetChannelLPF(col, 0);
+            }
             isDirty_ = true;
         }
     } else if (mask & EPBM_A) {

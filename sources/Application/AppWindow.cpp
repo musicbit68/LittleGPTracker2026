@@ -593,9 +593,9 @@ void AppWindow::Update(Observable &o, I_ObservableData *d) {
             break;
         case VT_MIXER:
             _currentView = _mixerView;
-            // Only Song/Chain can lead here - remember which, so R+UP
-            // from Mixer goes back to whichever one you actually came from
-            if (previousType == VT_SONG || previousType == VT_CHAIN) {
+            // Remember where we came from (any page except Mixer/Effect
+            // themselves), so SELECT+UP / R+UP goes back to the right place
+            if (previousType != VT_MIXER && previousType != VT_EFFECT) {
                 _mixerView->SetPreviousViewType(previousType);
             }
             break;

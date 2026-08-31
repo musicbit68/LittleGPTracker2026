@@ -827,6 +827,15 @@ void PhraseView::ProcessButtonMask(unsigned short mask, bool pressed) {
         return;
     };
 
+    if ((mask & EPBM_SELECT) && (mask & EPBM_DOWN)) {
+        // SELECT + DOWN = go to Mixer, from anywhere
+        ViewType vt = VT_MIXER;
+        ViewEvent ve(VET_SWITCH_VIEW, &vt);
+        SetChanged();
+        NotifyObservers(&ve);
+        return;
+    }
+
     if (viewMode_ == VM_NEW) {
         if (mask == EPBM_A) {
 
@@ -951,6 +960,125 @@ void PhraseView::ProcessButtonMask(unsigned short mask, bool pressed) {
     };
 }
 
+/******************************************************
+ randomizeNote:
+        picks a new random note within one octave of the
+        original, snapped to the currently selected scale
+ ******************************************************/
+
+void PhraseView::randomizeNote(uchar *notePtr) {
+    if (!notePtr || *notePtr == 0xFF) return;
+
+    int scale = viewData_->project_->GetScale();
+
+    // random offset within one octave (-12..+12 semitones)
+    int offset = (rand() % 25) - 12;
+    int newNote = (int)(*notePtr) + offset;
+    if (newNote < 0) newNote = 0;
+    if (newNote > 119) newNote = 119;
+
+    // snap to nearest in-scale note, searching outward from newNote.
+    // newNote is already clamped to [0,119] so modulo is always safe here.
+    int candidate = newNote;
+    if (!scaleSteps[scale][candidate % 12]) {
+        for (int step = 1; step <= 12; step++) {
+            int up = newNote + step;
+            int down = newNote - step;
+            if (up <= 119 && scaleSteps[scale][up % 12]) {
+                candidate = up;
+                break;
+            }
+            if (down >= 0 && scaleSteps[scale][down % 12]) {
+                candidate = down;
+                break;
+            }
+        }
+    }
+
+    *notePtr = (uchar)candidate;
+}
+
+/******************************************************
+ randomizeParam:
+        fully randomizes a command's 16 bit value - a
+        deliberately wide range, for finding interesting
+        results rather than staying "musically safe"
+ ******************************************************/
+
+void PhraseView::randomizeParam(ushort *paramPtr) {
+    if (!paramPtr) return;
+    *paramPtr = (ushort)(rand() & 0xFFFF);
+}
+
+/******************************************************
+ randomizeCurrentCell:
+        randomizes the single cell under the cursor, if
+        populated. Only notes (col 0) and command params
+        (col 3/5) are randomizable - instrument (col 1)
+        and command type (col 2/4) are left alone.
+ ******************************************************/
+
+void PhraseView::randomizeCurrentCell() {
+    int i = 16 * viewData_->currentPhrase_ + row_;
+
+    switch (col_) {
+    case 0:
+        randomizeNote(phrase_->note_ + i);
+        break;
+    case 3:
+        if (*(phrase_->cmd1_ + i) != I_CMD_NONE) {
+            randomizeParam(phrase_->param1_ + i);
+        }
+        break;
+    case 5:
+        if (*(phrase_->cmd2_ + i) != I_CMD_NONE) {
+            randomizeParam(phrase_->param2_ + i);
+        }
+        break;
+    default:
+        break;
+    }
+    isDirty_ = true;
+}
+
+/******************************************************
+ randomizeSelection:
+        randomizes every populated cell of the current
+        column type across the selected row range
+ ******************************************************/
+
+void PhraseView::randomizeSelection() {
+    GUIRect r = getSelectionRect();
+    int top = r.Top();
+    int bottom = r.Bottom();
+    int base = 16 * viewData_->currentPhrase_;
+
+    switch (col_) {
+    case 0:
+        for (int row = top; row <= bottom; row++) {
+            randomizeNote(phrase_->note_ + base + row);
+        }
+        break;
+    case 3:
+        for (int row = top; row <= bottom; row++) {
+            if (*(phrase_->cmd1_ + base + row) != I_CMD_NONE) {
+                randomizeParam(phrase_->param1_ + base + row);
+            }
+        }
+        break;
+    case 5:
+        for (int row = top; row <= bottom; row++) {
+            if (*(phrase_->cmd2_ + base + row) != I_CMD_NONE) {
+                randomizeParam(phrase_->param2_ + base + row);
+            }
+        }
+        break;
+    default:
+        break;
+    }
+    isDirty_ = true;
+}
+
 void PhraseView::processNormalButtonMask(unsigned short mask) {
     // Stop audition when pressing any button except A
     if (!(mask & EPBM_A)) {
@@ -1010,6 +1138,8 @@ void PhraseView::processNormalButtonMask(unsigned short mask) {
                 pasteClipboard();
             if (mask & EPBM_R)
                 switchSoloMode();
+            if (mask & EPBM_SELECT)
+                randomizeCurrentCell();
             if (mask == EPBM_A) {
                 pasteLast();
                 if ((col_ == 1) || (col_ == 3) || (col_ == 5))
@@ -1160,6 +1290,8 @@ void PhraseView::processSelectionButtonMask(unsigned short mask) {
                 cutSelection();
             if (mask & EPBM_R)
                 switchSoloMode();
+            if (mask & EPBM_SELECT)
+                randomizeSelection();
         } else {
 
             // R Modifier

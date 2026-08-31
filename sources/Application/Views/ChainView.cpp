@@ -390,6 +390,15 @@ void ChainView::ProcessButtonMask(unsigned short mask, bool pressed) {
         return;
     };
 
+    if ((mask & EPBM_SELECT) && (mask & EPBM_DOWN)) {
+        // SELECT + DOWN = go to Mixer, from anywhere
+        ViewType vt = VT_MIXER;
+        ViewEvent ve(VET_SWITCH_VIEW, &vt);
+        SetChanged();
+        NotifyObservers(&ve);
+        return;
+    }
+
     if (viewMode_ == VM_NEW) {
         if (mask == EPBM_A) {
             unsigned short next = viewData_->song_->phrase_->GetNext();

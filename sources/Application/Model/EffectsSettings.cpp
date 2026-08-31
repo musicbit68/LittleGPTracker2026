@@ -61,7 +61,7 @@ void EffectsSettings::Clear() {
 
 void EffectsSettings::Apply() {
 	ChorusEffect *chorus = ChorusBus::GetInstance()->GetEffect();
-	chorus->SetDepthMs((modDepth_->GetInt() / 255.0f) * 15.0f);
+	chorus->SetDepthMs((modDepth_->GetInt() / 255.0f) * 18.0f);
 	chorus->SetRateHz(0.05f + (modRate_->GetInt() / 255.0f) * 4.95f);
 	chorus->SetWidth(fl2fp(modWidth_->GetInt() / 255.0f));
 

@@ -306,6 +306,15 @@ void InstrumentView::ProcessButtonMask(unsigned short mask,bool pressed) {
 
 	isDirty_=false ;
 
+	if ((mask & EPBM_SELECT) && (mask & EPBM_DOWN)) {
+		// SELECT + DOWN = go to Mixer, from anywhere
+		ViewType vt = VT_MIXER;
+		ViewEvent ve(VET_SWITCH_VIEW, &vt);
+		SetChanged();
+		NotifyObservers(&ve);
+		return;
+	}
+
 	if (viewMode_==VM_NEW) {
 		if (mask==EPBM_A) {
 			UIIntVarField *field=(UIIntVarField *)GetFocus() ;

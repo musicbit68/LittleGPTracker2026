@@ -110,13 +110,14 @@ bool AudioMixer::Render(fixed *buffer,int samplecount) {
              if (right > preVolumePeakR) preVolumePeakR = right;
          }
          // Pack and store pre-volume peaks. preVolumePeakL/R are fixed-point
-         // (Q16.15) samples already numerically in 0..32768 range for
-         // 0..full-scale amplitude, which is exactly the 16-bit peak range
-         // we want here - do NOT run them through fp2i() (that extracts the
-         // integer part of a fixed value, i.e. divides by 32768, collapsing
-         // any normal-level signal down to 0).
-         unsigned int prePackedL = (unsigned int)preVolumePeakL;
-         unsigned int prePackedR = (unsigned int)preVolumePeakR;
+         // encodings of 16-bit PCM sample values (see SampleInstrument,
+         // which loads raw samples via i2fp() directly) - i.e. full scale
+         // is i2fp(32767), not "i2fp(1)". fp2i() correctly extracts the
+         // actual integer sample value back out for packing into a 16-bit
+         // display level; casting the raw fixed value directly (without
+         // fp2i) packs meaningless low bits of an enormous number instead.
+         unsigned int prePackedL = (unsigned int)fp2i(preVolumePeakL);
+         unsigned int prePackedR = (unsigned int)fp2i(preVolumePeakR);
          if (prePackedL > 0xFFFF) prePackedL = 0xFFFF;
          if (prePackedR > 0xFFFF) prePackedR = 0xFFFF;
          preMasterVolumePeakLevel_ = (prePackedL << 16) | prePackedR;
@@ -144,10 +145,11 @@ bool AudioMixer::Render(fixed *buffer,int samplecount) {
              if (right > peakR) peakR = right;
          }
 
-         // left 16 bits | right 16 bits, clamped to 16-bit range (see note
-         // above - use the raw fixed value directly, not fp2i())
-         unsigned int packedL = (unsigned int)peakL;
-         unsigned int packedR = (unsigned int)peakR;
+         // left 16 bits | right 16 bits, clamped to 16-bit range. Same
+         // fp2i() note as above - these are fixed-point PCM sample values,
+         // not a 0..1-normalized fixed value.
+         unsigned int packedL = (unsigned int)fp2i(peakL);
+         unsigned int packedR = (unsigned int)fp2i(peakR);
          if (packedL > 0xFFFF) packedL = 0xFFFF;
          if (packedR > 0xFFFF) packedR = 0xFFFF;
          peakMixerLevel_ = (packedL << 16) | packedR;

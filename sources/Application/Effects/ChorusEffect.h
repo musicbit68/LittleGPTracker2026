@@ -7,7 +7,7 @@
 // FX send bus chain. Operates in place on interleaved stereo buffers.
 
 #define CHORUS_SAMPLE_RATE 44100
-#define CHORUS_MAX_DELAY_MS 40
+#define CHORUS_MAX_DELAY_MS 45
 #define CHORUS_BUFFER_SAMPLES (((CHORUS_MAX_DELAY_MS * CHORUS_SAMPLE_RATE) / 1000) + 1)
 
 class ChorusEffect {

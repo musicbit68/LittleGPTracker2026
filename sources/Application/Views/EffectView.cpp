@@ -2,6 +2,7 @@
 #include "BaseClasses/UIStaticField.h"
 #include "BaseClasses/UIIntVarField.h"
 #include "Application/Model/EffectsSettings.h"
+#include "Application/Player/Player.h"
 #include "Application/AppWindow.h"
 
 EffectView::EffectView(GUIWindow &w, ViewData *data):FieldView(w, data) {
@@ -110,15 +111,41 @@ void EffectView::ProcessButtonMask(unsigned short mask, bool pressed) {
 
 	FieldView::ProcessButtonMask(mask);
 
-	// R + UP = back to the Mixer page
 	if (mask & EPBM_R) {
 		if (mask & EPBM_UP) {
+			// R + UP = back to the Mixer page
+			ViewType vt = VT_MIXER;
+			ViewEvent ve(VET_SWITCH_VIEW, &vt);
+			SetChanged();
+			NotifyObservers(&ve);
+		} else if (mask & EPBM_START) {
+			onStop();
+		}
+	} else if (mask & EPBM_SELECT) {
+		if (mask & EPBM_UP) {
+			// SELECT + UP = back to the Mixer page (same as R + UP)
 			ViewType vt = VT_MIXER;
 			ViewEvent ve(VET_SWITCH_VIEW, &vt);
 			SetChanged();
 			NotifyObservers(&ve);
 		}
+	} else if (mask & EPBM_START) {
+		onStart();
 	}
+}
+
+void EffectView::onStart() {
+	Player *player = Player::GetInstance();
+	unsigned char from = viewData_->songX_;
+	unsigned char to = from;
+	player->OnStartButton(PM_SONG, from, false, to);
+}
+
+void EffectView::onStop() {
+	Player *player = Player::GetInstance();
+	unsigned char from = viewData_->songX_;
+	unsigned char to = from;
+	player->OnStartButton(PM_SONG, from, true, to);
 }
 
 void EffectView::DrawView() {

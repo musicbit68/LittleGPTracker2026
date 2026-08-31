@@ -49,6 +49,11 @@ class PhraseView : public View {
     void processNormalButtonMask(unsigned short mask);
     void processSelectionButtonMask(unsigned short mask);
 
+    void randomizeCurrentCell();
+    void randomizeSelection();
+    void randomizeNote(uchar *notePtr);
+    void randomizeParam(ushort *paramPtr);
+
     void setTextProps(GUITextProperties &props, int row, int col, bool restore);
 
   private:

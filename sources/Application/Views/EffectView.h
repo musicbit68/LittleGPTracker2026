@@ -13,6 +13,10 @@ public:
 	virtual void DrawView();
 	virtual void OnPlayerUpdate(PlayerEventType, unsigned int) {};
 	virtual void OnFocus();
+
+protected:
+	void onStart();
+	void onStop();
 };
 
 #endif

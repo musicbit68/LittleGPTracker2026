@@ -602,6 +602,14 @@ void TableView::ProcessButtonMask(unsigned short mask, bool pressed) {
     if (!pressed) {
         return;
     }
+    if ((mask & EPBM_SELECT) && (mask & EPBM_DOWN)) {
+        // SELECT + DOWN = go to Mixer, from anywhere
+        ViewType vt = VT_MIXER;
+        ViewEvent ve(VET_SWITCH_VIEW, &vt);
+        SetChanged();
+        NotifyObservers(&ve);
+        return;
+    }
     if (viewMode_ == VM_SELECTION) {
         if (!clipboard_.active_) {
             clipboard_.active_ = true;

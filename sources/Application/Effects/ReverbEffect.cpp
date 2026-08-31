@@ -5,6 +5,32 @@
 
 #define REVERB_PI 3.14159265358979323846f
 
+// A small precomputed sine table replaces runtime sinf() calls in the
+// modulation layer. sinf() is comfortably the most expensive single
+// operation in this file - on ARM without fast hardware trig it can cost
+// far more than the actual fixed-point comb/allpass math - and it would
+// otherwise run up to 8 times per sample (4 combs x 2 channels). 512
+// entries is far more resolution than a slow 0.05-2Hz LFO needs; the
+// quantization error is inaudible.
+#define REVERB_SINE_TABLE_SIZE 512
+static float sSineTable[REVERB_SINE_TABLE_SIZE];
+static bool sSineTableReady = false;
+
+static void ensureSineTable() {
+	if (sSineTableReady) return;
+	for (int i = 0; i < REVERB_SINE_TABLE_SIZE; i++) {
+		sSineTable[i] = sinf((2.0f * REVERB_PI * (float)i) / (float)REVERB_SINE_TABLE_SIZE);
+	}
+	sSineTableReady = true;
+}
+
+// phase is expected in [0, 2*PI)
+static inline float fastSin(float phase) {
+	int idx = (int)(phase * (REVERB_SINE_TABLE_SIZE / (2.0f * REVERB_PI)));
+	idx &= (REVERB_SINE_TABLE_SIZE - 1);
+	return sSineTable[idx];
+}
+
 // Classic Freeverb tuning values, in samples @ 44100Hz.
 // Right channel uses a small offset from left for stereo width.
 static const int kCombTuningL[REVERB_COMB_COUNT] = {1116, 1188, 1277, 1356};
@@ -15,6 +41,7 @@ static const int kAllpassTuningR[REVERB_ALLPASS_COUNT] = {579, 244};
 #define REVERB_ALLPASS_FEEDBACK 0.5f
 
 ReverbEffect::ReverbEffect() {
+	ensureSineTable();
 	int i;
 	for (i = 0; i < REVERB_COMB_COUNT; i++) {
 		combL_[i].buffer = 0;
@@ -154,7 +181,7 @@ fixed ReverbEffect::processAllpass(Allpass &a, fixed input) {
 // NOT touch the comb's feedback path - purely an additional, separate tap
 // blended into the output, so it can't destabilize the core reverb tail.
 fixed ReverbEffect::readModulatedTap(Comb &c, float phase) {
-	float offset = modDepthSamples_ * sinf(phase);
+	float offset = modDepthSamples_ * fastSin(phase);
 	float readPosF = (float)c.index + offset;
 	while (readPosF < 0.0f) readPosF += (float)c.size;
 	while (readPosF >= (float)c.size) readPosF -= (float)c.size;
