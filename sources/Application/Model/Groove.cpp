@@ -1,7 +1,9 @@
 
 #include "Groove.h"
+#include <string.h>
 
 unsigned char Groove::data_[MAX_GROOVES][16] ;
+char Groove::names_[MAX_GROOVES][13] ;
 
 Groove::Groove():Persistent("GROOVES") {
 	Clear() ;
@@ -13,6 +15,7 @@ Groove::~Groove() {
 void Groove::Clear() {
 	// Init all grooves with basic datas
 	memset(data_,NO_GROOVE_DATA,MAX_GROOVES*0xF) ;
+	memset(names_,0,sizeof(names_)) ;
 	for (int i=0;i<MAX_GROOVES;i++) {
 		data_[i][0]=6 ;
 		data_[i][1]=6 ;
@@ -44,12 +47,22 @@ void Groove::GetChannelData(int channel,int *groove,int *position) {
 
 void Groove::SaveContent(TiXmlNode *node) {
 	 saveHexBuffer(node,"DATA",(unsigned char *)data_,16*MAX_GROOVES) ;
+	 saveHexBuffer(node,"NAMES",(unsigned char *)names_,13*MAX_GROOVES) ;
 } ;
 
  void Groove::RestoreContent(TiXmlElement *element) {
  	TiXmlElement *current=element->FirstChildElement() ;
 	restoreHexBuffer(current,(unsigned char*)data_) ;
+	current=current->NextSiblingElement() ;
+	if (current) {
+		restoreHexBuffer(current,(unsigned char*)names_) ;
+	}
 }
+
+void Groove::SetGrooveName(int groove,const char *name) {
+	strncpy(names_[groove],name,sizeof(names_[groove])-1) ;
+	names_[groove][sizeof(names_[groove])-1]='\0' ;
+} ;
 // Trigger grooves so we go to the next step
 
 void Groove::Trigger() {

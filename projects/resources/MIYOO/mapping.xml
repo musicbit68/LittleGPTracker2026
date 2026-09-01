@@ -24,6 +24,7 @@ miyoo mini button codes:
   <MAP src="key:0:space" dst="/event/a" />
   <MAP src="key:0:left ctrl" dst="/event/b" />
   <MAP src="key:0:return" dst="/event/start" />
+  <MAP src="key:0:right ctrl" dst="/event/select" />
   <MAP src="key:0:e" dst="/event/lshoulder" />
   <MAP src="key:0:t" dst="/event/rshoulder" />
 

@@ -17,6 +17,8 @@ public:
 	void Reset() ;
 	bool IsEmpty() ;
 	void Copy(const Table &other) ;
+	const char *GetName() { return name_; };
+	void SetName(const char *name);
 public:
 	FourCC cmd1_[TABLE_STEPS] ;
 	ushort param1_[TABLE_STEPS] ;
@@ -24,6 +26,7 @@ public:
 	ushort param2_[TABLE_STEPS] ;
 	FourCC cmd3_[TABLE_STEPS] ;
 	ushort param3_[TABLE_STEPS] ;
+	char name_[13] ;
 } ; 
 
 class TableHolder: public T_Singleton<TableHolder>,Persistent  {

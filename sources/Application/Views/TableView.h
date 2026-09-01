@@ -16,6 +16,7 @@ class TableView : public View {
     virtual void OnFocus();
     void onCommandSelectorResult(ModalView &d);
     void onCommandSelectorPreview(ModalView &d);
+    void onRenameResult(ModalView &d);
 
   protected:
     void processNormalButtonMask(unsigned short mask);
@@ -38,6 +39,7 @@ class TableView : public View {
     void enterCommandSelector();
     void setTextProps(GUITextProperties &props, int row, int col, bool restore);
     void warpToNeighbour(int dir);
+    void openRenameDialog();
 
     GUIRect getSelectionRect();
 

@@ -4,6 +4,7 @@
 #include "Application/Utils/HexBuffers.h"
 #include "Application/Utils/char.h"
 #include "Song.h"
+#include <string.h>
 
 Table::Table() {
 	Reset() ;
@@ -16,6 +17,12 @@ void Table::Reset() {
 	SYS_MEMSET(param2_,0,sizeof(param2_[0])*TABLE_STEPS) ;
 	SYS_MEMSET(cmd3_,'-',sizeof(cmd3_[0])*TABLE_STEPS) ;
 	SYS_MEMSET(param3_,0,sizeof(param3_[0])*TABLE_STEPS) ;
+	name_[0]='\0' ;
+} ;
+
+void Table::SetName(const char *name) {
+	strncpy(name_,name,sizeof(name_)-1) ;
+	name_[sizeof(name_)-1]='\0' ;
 } ;
 
 void Table::Copy(const Table &other) {
@@ -25,10 +32,14 @@ void Table::Copy(const Table &other) {
 	SYS_MEMCPY(param2_,other.param2_,sizeof(param2_[0])*TABLE_STEPS) ;
 	SYS_MEMCPY(cmd3_,other.cmd3_,sizeof(cmd3_[0])*TABLE_STEPS) ;
 	SYS_MEMCPY(param3_,other.param3_,sizeof(param3_[0])*TABLE_STEPS) ;
+	SYS_MEMCPY(name_,other.name_,sizeof(name_)) ;
 } ;
 
 bool Table::IsEmpty() {
 
+	if (name_[0]!='\0') {
+		return false ;
+	} ;
 	for (int i=0;i<TABLE_STEPS;i++) {
 		if (cmd1_[i]!=I_CMD_NONE) {
 			return false ;
@@ -82,6 +93,9 @@ void TableHolder::SaveContent(TiXmlNode *node) {
 
 		Table &table=table_[i] ;
 		if (!table.IsEmpty()) {
+			if (table.name_[0]!='\0') {
+				data.SetAttribute("NAME",table.name_) ;
+			}
 			TiXmlNode *dataNode=node->InsertEndChild(data) ;
 			for (int i=0; i<16; i++)
 			{
@@ -116,6 +130,11 @@ void TableHolder::RestoreContent(TiXmlElement *element) {
 			unsigned char id=b1+b2 ;	
 
 			Table &table=table_[id] ;
+
+			const char* name=current->Attribute("NAME") ;
+			if (name) {
+				table.SetName(name) ;
+			}
 
 			TiXmlElement *sub=current->FirstChildElement() ;
 			while(sub) {

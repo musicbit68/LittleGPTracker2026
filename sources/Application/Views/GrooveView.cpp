@@ -2,6 +2,11 @@
 #include "GrooveView.h"
 #include "Application/Model/Groove.h"
 #include "Application/Utils/char.h"
+#include "Application/Views/ModalDialogs/TextEntryDialog.h"
+
+static void GrooveRenameCallback(View &v, ModalView &d) {
+    ((GrooveView &)v).onRenameResult(d);
+}
 
 GrooveView::GrooveView(GUIWindow &w,ViewData *viewData):View(w,viewData) {
 	position_=0 ;
@@ -55,6 +60,20 @@ void GrooveView::clearCursorValue() {
 	isDirty_=true ;
 }	
 
+void GrooveView::openRenameDialog() {
+	Groove *groove=Groove::GetInstance() ;
+	DoModal(new TextEntryDialog(*this,"Name Groove",groove->GetGrooveName(viewData_->currentGroove_)),GrooveRenameCallback) ;
+}
+
+void GrooveView::onRenameResult(ModalView &d) {
+	TextEntryDialog &dialog=(TextEntryDialog &)d ;
+	if (dialog.GetReturnCode()==1) {
+		Groove *groove=Groove::GetInstance() ;
+		groove->SetGrooveName(viewData_->currentGroove_,dialog.GetName().c_str()) ;
+	}
+	isDirty_=true ;
+}
+
 void GrooveView::ProcessButtonMask(unsigned short mask,bool pressed) {
 
 	if (!pressed) return ;
@@ -90,6 +109,9 @@ void GrooveView::ProcessButtonMask(unsigned short mask,bool pressed) {
 
 	  // A modifier
 	  if (mask&EPBM_A) {         
+			if (mask==(EPBM_A|EPBM_SELECT)) {
+				openRenameDialog() ;
+			}
 			if (mask&EPBM_LEFT) {
 				updateCursorValue(-1) ;
 			}
@@ -146,6 +168,11 @@ void GrooveView::DrawView() {
 	SetColor(CD_NORMAL) ;
 
 	sprintf(title,"Groove: %2.2x",viewData_->currentGroove_) ;
+	const char *grooveName=Groove::GetInstance()->GetGrooveName(viewData_->currentGroove_) ;
+	if (grooveName[0]!='\0') {
+		strcat(title,": ") ;
+		strcat(title,grooveName) ;
+	}
 	DrawString(pos._x,pos._y,title,props) ;
 
 // Compute song grid location

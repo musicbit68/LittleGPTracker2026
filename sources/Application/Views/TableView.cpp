@@ -5,11 +5,16 @@
 #include "Application/Utils/char.h"
 #include "Application/Views/CommandSelectorCommon.h"
 #include "Application/Views/ModalDialogs/CommandSelectorModal.h"
+#include "Application/Views/ModalDialogs/TextEntryDialog.h"
 
 #define FCC_EDIT MAKE_FOURCC('T', 'B', 'E', 'D')
 
 static void CommandSelectorCallback(View &v, ModalView &d) {
     ((TableView &)v).onCommandSelectorResult(d);
+}
+
+static void RenameCallback(View &v, ModalView &d) {
+    ((TableView &)v).onRenameResult(d);
 }
 
 static void CommandSelectorPreviewCallback(View &v, ModalView &d) {
@@ -547,6 +552,20 @@ void TableView::onCommandSelectorResult(ModalView &d) {
     isDirty_ = true;
 }
 
+void TableView::openRenameDialog() {
+    Table &table = TableHolder::GetInstance()->GetTable(viewData_->currentTable_);
+    DoModal(new TextEntryDialog(*this, "Name Table", table.GetName()), RenameCallback);
+}
+
+void TableView::onRenameResult(ModalView &d) {
+    TextEntryDialog &dialog = (TextEntryDialog &)d;
+    if (dialog.GetReturnCode() == 1) {
+        Table &table = TableHolder::GetInstance()->GetTable(viewData_->currentTable_);
+        table.SetName(dialog.GetName().c_str());
+    }
+    isDirty_ = true;
+}
+
 void TableView::onCommandSelectorPreview(ModalView &) { isDirty_ = true; }
 
 void TableView::pasteLast() {
@@ -647,6 +666,9 @@ void TableView::processNormalButtonMask(unsigned short mask) {
         // A modifier
 
         if (mask & EPBM_A) {
+            if (mask == (EPBM_A | EPBM_SELECT)) {
+                openRenameDialog();
+            }
             if (mask & EPBM_DOWN) {
                 if (isCommandColumn())
                     enterCommandSelector();
@@ -832,9 +854,13 @@ void TableView::DrawView() {
 
     // Draw title
 
-    char title[20];
+    char title[32];
     SetColor(CD_NORMAL);
-    sprintf(title, "Table %2.2x", viewData_->currentTable_);
+    if (table.GetName()[0] != '\0') {
+        sprintf(title, "Table %2.2x: %s", viewData_->currentTable_, table.GetName());
+    } else {
+        sprintf(title, "Table %2.2x", viewData_->currentTable_);
+    }
     DrawString(pos._x, pos._y, title, props);
 
     // Compute song grid location

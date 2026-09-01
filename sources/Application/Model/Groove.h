@@ -29,12 +29,15 @@ public:
 	bool UpdateGroove(ChannelGroove &g,bool reverse) ;
 	void GetChannelData(int channel,int *groove,int *position) ;
 	unsigned char *GetGrooveData(int groove) ;
+	const char *GetGrooveName(int groove) { return names_[groove]; };
+	void SetGrooveName(int groove,const char *name) ;
 	virtual void SaveContent(TiXmlNode *node) ;
 	virtual void RestoreContent(TiXmlElement *element);
 	
 private:
 	ChannelGroove channelGroove_[SONG_CHANNEL_COUNT] ; 
 	static unsigned char data_[MAX_GROOVES][16] ;
+	static char names_[MAX_GROOVES][13] ;
 } ;
 #endif
 

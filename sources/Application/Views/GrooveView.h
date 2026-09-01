@@ -12,6 +12,7 @@ public:
 	virtual void DrawView() ;
 	virtual void OnPlayerUpdate(PlayerEventType ,unsigned int tick=0) ;
 	virtual void OnFocus() ;
+	void onRenameResult(ModalView &d) ;
 
 protected:
 	void updateCursorValue(int val,bool sync=false) ;
@@ -19,6 +20,7 @@ protected:
 	void initCursorValue() ;
 	void clearCursorValue() ;
 	void warpGroove(int dir) ;
+	void openRenameDialog() ;
 	void processNormalButtonMask(unsigned short mask) ;
 	void processSelectionButtonMask(unsigned short mask) ;
 
