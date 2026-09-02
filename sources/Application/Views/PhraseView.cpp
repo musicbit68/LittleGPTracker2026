@@ -6,6 +6,7 @@
 #include "Application/Utils/char.h"
 #include "Application/Views/CommandSelectorCommon.h"
 #include "Application/Views/ModalDialogs/CommandSelectorModal.h"
+#include "Application/Views/ModalDialogs/TextEntryDialog.h"
 #include "System/Console/Trace.h"
 #include "UIController.h"
 #include <stdlib.h>
@@ -19,6 +20,10 @@ static void CommandSelectorCallback(View &v, ModalView &d) {
 
 static void CommandSelectorPreviewCallback(View &v, ModalView &d) {
     ((PhraseView &)v).onCommandSelectorPreview(d);
+}
+
+static void PhraseRenameCallback(View &v, ModalView &d) {
+    ((PhraseView &)v).onRenameResult(d);
 }
 
 PhraseView::PhraseView(GUIWindow &w, ViewData *viewData)
@@ -157,6 +162,18 @@ void PhraseView::onCommandSelectorPreview(ModalView &) {
         player->OnStartButton(PM_AUDITION, viewData_->songX_, false,
                               viewData_->chainRow_);
     }
+}
+
+void PhraseView::openRenameDialog() {
+    DoModal(new TextEntryDialog(*this, "Name Phrase", phrase_->GetName(viewData_->currentPhrase_)), PhraseRenameCallback);
+}
+
+void PhraseView::onRenameResult(ModalView &d) {
+    TextEntryDialog &dialog = (TextEntryDialog &)d;
+    if (dialog.GetReturnCode() == 1) {
+        phrase_->SetName(viewData_->currentPhrase_, dialog.GetName().c_str());
+    }
+    isDirty_ = true;
 }
 
 void PhraseView::updateCursorValue(ViewUpdateDirection direction, int xOffset,
@@ -827,15 +844,6 @@ void PhraseView::ProcessButtonMask(unsigned short mask, bool pressed) {
         return;
     };
 
-    if ((mask & EPBM_SELECT) && (mask & EPBM_DOWN)) {
-        // SELECT + DOWN = go to Mixer, from anywhere
-        ViewType vt = VT_MIXER;
-        ViewEvent ve(VET_SWITCH_VIEW, &vt);
-        SetChanged();
-        NotifyObservers(&ve);
-        return;
-    }
-
     if (viewMode_ == VM_NEW) {
         if (mask == EPBM_A) {
 
@@ -1089,6 +1097,9 @@ void PhraseView::processNormalButtonMask(unsigned short mask) {
     Player *player = Player::GetInstance();
 
     if (mask & EPBM_B) {
+        if (mask & EPBM_SELECT) {
+            openRenameDialog();
+        }
         if (mask & EPBM_LEFT)
             warpToNeighbour(-1);
         if (mask & EPBM_RIGHT)
@@ -1175,7 +1186,7 @@ void PhraseView::processNormalButtonMask(unsigned short mask) {
                         NotifyObservers(&ve);
                     }
                 }
-                if (mask & EPBM_DOWN) {
+                if (mask & EPBM_UP) {
 
                     // Go to table view
 
@@ -1200,11 +1211,11 @@ void PhraseView::processNormalButtonMask(unsigned short mask) {
                     NotifyObservers(&ve);
                 }
 
-                if (mask & EPBM_UP) {
+                if (mask & EPBM_DOWN) {
 
-                    // Go to groove view
+                    // Go to Mixer
 
-                    ViewType vt = VT_GROOVE;
+                    ViewType vt = VT_MIXER;
                     ViewEvent ve(VET_SWITCH_VIEW, &vt);
                     SetChanged();
                     NotifyObservers(&ve);
@@ -1394,6 +1405,9 @@ void PhraseView::DrawView() {
     SetColor(CD_NORMAL);
     sprintf(title, "Phrase %2.2x", viewData_->currentPhrase_);
     DrawString(pos._x, pos._y, title, props);
+    if (phrase_->GetName(viewData_->currentPhrase_)[0] != '\0') {
+        DrawString(pos._x, pos._y + 1, phrase_->GetName(viewData_->currentPhrase_), props);
+    }
 
     // Compute song grid location
 

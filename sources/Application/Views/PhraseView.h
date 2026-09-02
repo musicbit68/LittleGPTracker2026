@@ -19,6 +19,7 @@ class PhraseView : public View {
     virtual void OnFocus();
     void onCommandSelectorResult(ModalView &d);
     void onCommandSelectorPreview(ModalView &d);
+    void onRenameResult(ModalView &d);
 
   protected:
     void updateCursor(int dx, int dy);
@@ -53,6 +54,7 @@ class PhraseView : public View {
     void randomizeSelection();
     void randomizeNote(uchar *notePtr);
     void randomizeParam(ushort *paramPtr);
+    void openRenameDialog();
 
     void setTextProps(GUITextProperties &props, int row, int col, bool restore);
 

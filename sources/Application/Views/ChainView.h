@@ -12,6 +12,7 @@ class ChainView : public View {
     virtual void DrawView();
     virtual void OnFocus();
     virtual void OnPlayerUpdate(PlayerEventType, unsigned int tick = 0);
+    void onRenameResult(ModalView &d);
 
   protected:
     void updateCursor(int dx, int dy);
@@ -38,6 +39,7 @@ class ChainView : public View {
     void processNormalButtonMask(unsigned short mask);
     void processSelectionButtonMask(unsigned short mask);
     void setTextProps(GUITextProperties &props, int row, int col, bool restore);
+    void openRenameDialog();
 
   private:
     bool updatingPhrase_;      // .Tells if we're in the middle

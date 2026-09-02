@@ -13,12 +13,18 @@ Chain::Chain() {
 	for (int i=0;i<CHAIN_COUNT;i++) {
 		isUsed_[i]=false ;
 	}
+	memset(names_,0,sizeof(names_)) ;
 } ;
 
 Chain::~Chain() {
 	if (data_) SYS_FREE(data_) ;
 	if (transpose_) SYS_FREE(transpose_) ;
 };
+
+void Chain::SetName(int i, const char *name) {
+	strncpy(names_[i],name,sizeof(names_[i])-1) ;
+	names_[i][sizeof(names_[i])-1]='\0' ;
+} ;
 
 unsigned short Chain::GetNext() {
 	for (int i=0;i<CHAIN_COUNT;i++) {

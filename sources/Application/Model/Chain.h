@@ -12,9 +12,12 @@ public:
 	bool IsUsed(unsigned char i) { return isUsed_[i] ; } ;
 	void SetUsed(unsigned char c) ;
 	void ClearAllocation() ;
+	const char *GetName(int i) { return names_[i]; };
+	void SetName(int i, const char *name);
 
 	unsigned char *data_ ;
 	unsigned char *transpose_ ;
+	char names_[CHAIN_COUNT][13] ;
 
 	
 private:

@@ -84,20 +84,16 @@ void View::drawMap() {
 		SetColor(CD_HILITE1) ;
     	char buffer[5] ;
 		props.invert_=true ;
-		//row1
-		sprintf(buffer,"P G ");
+		//row1: Project, Groove, Table, Table2 - each "above" its column below
+		sprintf(buffer,"PGTT");
         DrawString(pos._x,pos._y,buffer,props) ;
 		pos._y++ ;		
 		//row2
 		sprintf(buffer,"SCPI");
         DrawString(pos._x,pos._y,buffer,props) ;
 		pos._y++ ;		
-		//row3
-        sprintf(buffer, " MTT");
-        DrawString(pos._x,pos._y,buffer,props) ;
-		pos._y++ ;
-		//row4
-        sprintf(buffer, "X   ");
+		//row3: Mixer, Effects - reachable (via DOWN) from all 4 above
+        sprintf(buffer, "MX  ");
         DrawString(pos._x,pos._y,buffer,props) ;
 
 		//draw current screen on map
@@ -123,27 +119,25 @@ void View::drawMap() {
 			pos._y+=1;
 	        DrawString(pos._x,pos._y,"I",props) ;
 			break;
-		case VT_TABLE: //under phrase
+		case VT_TABLE: //above phrase
 			pos._x+=2;
-			pos._y+=2;
 	        DrawString(pos._x,pos._y,"T",props) ;
 			break;
-		case VT_TABLE2: //under instrument
+		case VT_TABLE2: //above instrument
 			pos._x+=3;
-			pos._y+=2;
 	        DrawString(pos._x,pos._y,"T",props) ;
 			break;
-		case VT_GROOVE:
-			pos._x+=2;
+		case VT_GROOVE: //above chain
+			pos._x+=1;
 	        DrawString(pos._x,pos._y,"G",props) ;
 			break;
         case VT_MIXER:
-            pos._x+=1;
 			pos._y+=2;
 	        DrawString(pos._x,pos._y,"M",props) ;
 			break;
         case VT_EFFECT:
-	        DrawString(pos._x,pos._y+3,"X",props) ;
+			pos._x+=1;
+	        DrawString(pos._x,pos._y+2,"X",props) ;
 			break;
 		default: //VT_SONG
 			pos._y+=1;

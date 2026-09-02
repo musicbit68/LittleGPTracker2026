@@ -6,6 +6,18 @@
 #include "System/System/System.h"
 #include <string.h>
 
+// If a send bus has received no meaningful input for this long, its DSP
+// is skipped entirely (silence is output instead) until new input arrives.
+// This saves real CPU/battery on buses that aren't currently in use, and
+// as a side effect puts a hard ceiling on how long any decay tail (e.g.
+// reverb) can audibly persist after the last note - by the time a bus has
+// been silent this long, any well-behaved effect's natural tail should
+// already have decayed well past audibility anyway.
+#define SEND_BUS_IDLE_TIMEOUT_SAMPLES (10 * 44100)
+// Below this, a sample is treated as silence (not "no signal at all", to
+// tolerate tiny rounding/dither noise without ever failing to go idle).
+#define SEND_BUS_SILENCE_EPSILON 2
+
 // Common interface so one send bus can feed a scaled copy of its processed
 // output into another (e.g. chorus/delay feeding reverb), without the
 // buses needing to know each other's concrete effect type.
@@ -33,6 +45,7 @@ public:
 		enabled_ = true;
 		downstream_ = 0;
 		downstreamSend_ = i2fp(0);
+		idleSamples_ = 0;
 	}
 
 	virtual ~T_SendBus() {
@@ -65,13 +78,37 @@ public:
 	virtual bool Render(fixed *buffer, int samplecount) {
 		ensureAccumulatorSize(samplecount);
 
+		bool hasSignal = false;
+		for (int i = 0; i < samplecount * 2; i++) {
+			if (accumulator_[i] > SEND_BUS_SILENCE_EPSILON || accumulator_[i] < -SEND_BUS_SILENCE_EPSILON) {
+				hasSignal = true;
+				break;
+			}
+		}
+
+		if (hasSignal) {
+			idleSamples_ = 0;
+		} else if (idleSamples_ <= SEND_BUS_IDLE_TIMEOUT_SAMPLES) {
+			// only keep counting up to the timeout - no need to let this
+			// grow unbounded while genuinely idle for a long time
+			idleSamples_ += samplecount;
+		}
+
 		memcpy(buffer, accumulator_, samplecount * 2 * sizeof(fixed));
 		// consumed - clear the accumulator for the next audio callback
 		memset(accumulator_, 0, samplecount * 2 * sizeof(fixed));
 
-		if (enabled_) effect_.Process(buffer, samplecount);
+		bool longIdle = (idleSamples_ > SEND_BUS_IDLE_TIMEOUT_SAMPLES);
 
-		if (downstream_ && downstreamSend_ > 0) {
+		if (enabled_ && !longIdle) {
+			effect_.Process(buffer, samplecount);
+		} else {
+			// either disabled, or idle long enough that any natural decay
+			// tail should already be inaudible - skip the DSP entirely
+			memset(buffer, 0, samplecount * 2 * sizeof(fixed));
+		}
+
+		if (downstream_ && downstreamSend_ > 0 && !longIdle) {
 			downstream_->Accumulate(buffer, samplecount, downstreamSend_);
 		}
 
@@ -88,6 +125,8 @@ private:
 
 	I_SendTarget *downstream_;
 	fixed downstreamSend_;
+
+	int idleSamples_;
 
 	void ensureAccumulatorSize(int samplecount) {
 		if (accumulator_ && accumulatorSize_ >= samplecount) return;

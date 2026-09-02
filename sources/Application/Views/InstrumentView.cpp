@@ -306,15 +306,6 @@ void InstrumentView::ProcessButtonMask(unsigned short mask,bool pressed) {
 
 	isDirty_=false ;
 
-	if ((mask & EPBM_SELECT) && (mask & EPBM_DOWN)) {
-		// SELECT + DOWN = go to Mixer, from anywhere
-		ViewType vt = VT_MIXER;
-		ViewEvent ve(VET_SWITCH_VIEW, &vt);
-		SetChanged();
-		NotifyObservers(&ve);
-		return;
-	}
-
 	if (viewMode_==VM_NEW) {
 		if (mask==EPBM_A) {
 			UIIntVarField *field=(UIIntVarField *)GetFocus() ;
@@ -438,7 +429,7 @@ void InstrumentView::ProcessButtonMask(unsigned short mask,bool pressed) {
                     NotifyObservers(&ve);
                 }
 
-                if (mask & EPBM_DOWN) {
+                if (mask & EPBM_UP) {
 
                     // Go to table view
 
@@ -452,6 +443,16 @@ void InstrumentView::ProcessButtonMask(unsigned short mask,bool pressed) {
                     if (table != VAR_OFF) {
                         viewData_->currentTable_ = table;
                     }
+                    ViewEvent ve(VET_SWITCH_VIEW, &vt);
+                    SetChanged();
+                    NotifyObservers(&ve);
+                }
+
+                if (mask & EPBM_DOWN) {
+
+                    // Go to Mixer
+
+                    ViewType vt = VT_MIXER;
                     ViewEvent ve(VET_SWITCH_VIEW, &vt);
                     SetChanged();
                     NotifyObservers(&ve);

@@ -13,6 +13,8 @@ public:
 	bool IsUsed(uchar i) { return isUsed_[i] ; } ;
 	void SetUsed(uchar c) ;
 	void ClearAllocation() ;
+	const char *GetName(int i) { return names_[i]; };
+	void SetName(int i, const char *name);
 
 	uchar *note_ ;
 	uchar *instr_ ;
@@ -20,6 +22,7 @@ public:
 	ushort *param1_ ;
 	FourCC *cmd2_ ;
 	ushort *param2_ ;
+	char names_[PHRASE_COUNT][13] ;
 	
 private:
 	bool isUsed_[PHRASE_COUNT] ;

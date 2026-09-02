@@ -38,7 +38,7 @@ ChorusEffect::ChorusEffect() {
 	lfoIncrement_ = 2.0f * CHORUS_PI * 0.6f / (float)CHORUS_SAMPLE_RATE; // 0.6Hz default
 	depthSamples_ = ((float)CHORUS_SAMPLE_RATE * 4.0f) / 1000.0f;   // 4ms default depth
 	centerSamples_ = ((float)CHORUS_SAMPLE_RATE * 18.0f) / 1000.0f; // 18ms default center (raised to give the depth range more room to swing before crossing zero)
-	mix_ = fl2fp(0.5f);
+	mix_ = fl2fp(0.9f);
 	width_ = i2fp(1);
 }
 

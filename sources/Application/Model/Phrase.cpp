@@ -24,6 +24,7 @@ Phrase::Phrase() {
 	for (int i=0;i<PHRASE_COUNT;i++) {
 		isUsed_[i]=false ;
 	}
+	memset(names_,0,sizeof(names_)) ;
 } ;
 
 Phrase::~Phrase() {
@@ -33,6 +34,11 @@ Phrase::~Phrase() {
 	if (cmd_) SYS_FREE(cmd_) ;
 	if (cmdData_) SYS_FREE(cmdData_) ;
 	*/
+} ;
+
+void Phrase::SetName(int i, const char *name) {
+	strncpy(names_[i],name,sizeof(names_[i])-1) ;
+	names_[i][sizeof(names_[i])-1]='\0' ;
 } ;
 
 unsigned short Phrase::GetNext() {

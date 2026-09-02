@@ -162,14 +162,6 @@ void MixerView::processNormalButtonMask(unsigned int mask) {
         } else if (mask & EPBM_START) {
             onStop();
         }
-    } else if (mask & EPBM_SELECT) {
-        if (mask & EPBM_UP) {
-            // SELECT + UP = go back to previous view (same as R + UP)
-            ViewEvent ve(VET_SWITCH_VIEW, &previousViewType_);
-            viewData_->songX_ = viewData_->mixerCol_;
-            SetChanged();
-            NotifyObservers(&ve);
-        }
     } else if (mask & EPBM_B) {
         if (mask & EPBM_A) {
             // B + A = reset current row's value for this column:

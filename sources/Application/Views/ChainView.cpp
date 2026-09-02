@@ -1,7 +1,12 @@
 #include "ChainView.h"
 #include "Application/Utils/char.h"
+#include "Application/Views/ModalDialogs/TextEntryDialog.h"
 #include "System/Console/Trace.h"
 #include "UIController.h"
+
+static void ChainRenameCallback(View &v, ModalView &d) {
+    ((ChainView &)v).onRenameResult(d);
+}
 
 ChainView::ChainView(GUIWindow &w, ViewData *viewData) : View(w, viewData) {
     updatingPhrase_ = false;
@@ -17,6 +22,18 @@ ChainView::ChainView(GUIWindow &w, ViewData *viewData) : View(w, viewData) {
         clipboard_.phrase_[i] = 0xFF;
         clipboard_.transpose_[i] = 0;
     };
+}
+
+void ChainView::openRenameDialog() {
+    DoModal(new TextEntryDialog(*this, "Name Chain", viewData_->song_->chain_->GetName(viewData_->currentChain_)), ChainRenameCallback);
+}
+
+void ChainView::onRenameResult(ModalView &d) {
+    TextEntryDialog &dialog = (TextEntryDialog &)d;
+    if (dialog.GetReturnCode() == 1) {
+        viewData_->song_->chain_->SetName(viewData_->currentChain_, dialog.GetName().c_str());
+    }
+    isDirty_ = true;
 }
 
 void ChainView::setPhrase(unsigned char value) {
@@ -390,15 +407,6 @@ void ChainView::ProcessButtonMask(unsigned short mask, bool pressed) {
         return;
     };
 
-    if ((mask & EPBM_SELECT) && (mask & EPBM_DOWN)) {
-        // SELECT + DOWN = go to Mixer, from anywhere
-        ViewType vt = VT_MIXER;
-        ViewEvent ve(VET_SWITCH_VIEW, &vt);
-        SetChanged();
-        NotifyObservers(&ve);
-        return;
-    }
-
     if (viewMode_ == VM_NEW) {
         if (mask == EPBM_A) {
             unsigned short next = viewData_->song_->phrase_->GetNext();
@@ -447,6 +455,9 @@ void ChainView::processNormalButtonMask(unsigned short mask) {
     // B Modifier
 
     if (mask & EPBM_B) {
+        if (mask & EPBM_SELECT) {
+            openRenameDialog();
+        }
         if (mask & EPBM_LEFT)
             warpToNeighbour(-1);
         if (mask & EPBM_RIGHT)
@@ -510,6 +521,13 @@ void ChainView::processNormalButtonMask(unsigned short mask) {
 
                 if (mask & EPBM_DOWN) {
                     ViewType vt = VT_MIXER;
+                    ViewEvent ve(VET_SWITCH_VIEW, &vt);
+                    SetChanged();
+                    NotifyObservers(&ve);
+                }
+
+                if (mask & EPBM_UP) {
+                    ViewType vt = VT_GROOVE;
                     ViewEvent ve(VET_SWITCH_VIEW, &vt);
                     SetChanged();
                     NotifyObservers(&ve);
@@ -692,6 +710,9 @@ void ChainView::DrawView() {
     SetColor(CD_NORMAL);
     sprintf(title, "Chain %2.2x", viewData_->currentChain_);
     DrawString(pos._x, pos._y, title, props);
+    if (viewData_->song_->chain_->GetName(viewData_->currentChain_)[0] != '\0') {
+        DrawString(pos._x, pos._y + 1, viewData_->song_->chain_->GetName(viewData_->currentChain_), props);
+    }
 
     // Compute song grid location
 

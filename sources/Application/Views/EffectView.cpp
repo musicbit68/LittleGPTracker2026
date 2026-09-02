@@ -121,14 +121,6 @@ void EffectView::ProcessButtonMask(unsigned short mask, bool pressed) {
 		} else if (mask & EPBM_START) {
 			onStop();
 		}
-	} else if (mask & EPBM_SELECT) {
-		if (mask & EPBM_UP) {
-			// SELECT + UP = back to the Mixer page (same as R + UP)
-			ViewType vt = VT_MIXER;
-			ViewEvent ve(VET_SWITCH_VIEW, &vt);
-			SetChanged();
-			NotifyObservers(&ve);
-		}
 	} else if (mask & EPBM_START) {
 		onStart();
 	}

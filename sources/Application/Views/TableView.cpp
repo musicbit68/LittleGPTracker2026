@@ -621,14 +621,6 @@ void TableView::ProcessButtonMask(unsigned short mask, bool pressed) {
     if (!pressed) {
         return;
     }
-    if ((mask & EPBM_SELECT) && (mask & EPBM_DOWN)) {
-        // SELECT + DOWN = go to Mixer, from anywhere
-        ViewType vt = VT_MIXER;
-        ViewEvent ve(VET_SWITCH_VIEW, &vt);
-        SetChanged();
-        NotifyObservers(&ve);
-        return;
-    }
     if (viewMode_ == VM_SELECTION) {
         if (!clipboard_.active_) {
             clipboard_.active_ = true;
@@ -648,6 +640,9 @@ void TableView::processNormalButtonMask(unsigned short mask) {
     Player *player = Player::GetInstance();
 
     if (mask & EPBM_B) {
+        if (mask & EPBM_SELECT) {
+            openRenameDialog();
+        }
         if (mask & EPBM_LEFT)
             warpToNeighbour(-1);
         if (mask & EPBM_RIGHT)
@@ -666,9 +661,6 @@ void TableView::processNormalButtonMask(unsigned short mask) {
         // A modifier
 
         if (mask & EPBM_A) {
-            if (mask == (EPBM_A | EPBM_SELECT)) {
-                openRenameDialog();
-            }
             if (mask & EPBM_DOWN) {
                 if (isCommandColumn())
                     enterCommandSelector();
@@ -854,14 +846,13 @@ void TableView::DrawView() {
 
     // Draw title
 
-    char title[32];
+    char title[20];
     SetColor(CD_NORMAL);
-    if (table.GetName()[0] != '\0') {
-        sprintf(title, "Table %2.2x: %s", viewData_->currentTable_, table.GetName());
-    } else {
-        sprintf(title, "Table %2.2x", viewData_->currentTable_);
-    }
+    sprintf(title, "Table %2.2x", viewData_->currentTable_);
     DrawString(pos._x, pos._y, title, props);
+    if (table.GetName()[0] != '\0') {
+        DrawString(pos._x, pos._y + 1, table.GetName(), props);
+    }
 
     // Compute song grid location
 

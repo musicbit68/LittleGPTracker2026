@@ -80,16 +80,10 @@ void GrooveView::ProcessButtonMask(unsigned short mask,bool pressed) {
 	
 	Player *player=Player::GetInstance() ;
 
-	if ((mask & EPBM_SELECT) && (mask & EPBM_DOWN)) {
-		// SELECT + DOWN = go to Mixer, from anywhere
-		ViewType vt = VT_MIXER;
-		ViewEvent ve(VET_SWITCH_VIEW, &vt);
-		SetChanged();
-		NotifyObservers(&ve);
-		return;
-	}
-
 	if (mask&EPBM_B) {         
+			if (mask&EPBM_SELECT) {
+				openRenameDialog() ;
+			}
 			if (mask&EPBM_LEFT) {
 				warpGroove(-1) ;
 			}
@@ -109,9 +103,6 @@ void GrooveView::ProcessButtonMask(unsigned short mask,bool pressed) {
 
 	  // A modifier
 	  if (mask&EPBM_A) {         
-			if (mask==(EPBM_A|EPBM_SELECT)) {
-				openRenameDialog() ;
-			}
 			if (mask&EPBM_LEFT) {
 				updateCursorValue(-1) ;
 			}
@@ -168,12 +159,11 @@ void GrooveView::DrawView() {
 	SetColor(CD_NORMAL) ;
 
 	sprintf(title,"Groove: %2.2x",viewData_->currentGroove_) ;
+	DrawString(pos._x,pos._y,title,props) ;
 	const char *grooveName=Groove::GetInstance()->GetGrooveName(viewData_->currentGroove_) ;
 	if (grooveName[0]!='\0') {
-		strcat(title,": ") ;
-		strcat(title,grooveName) ;
+		DrawString(pos._x,pos._y+1,grooveName,props) ;
 	}
-	DrawString(pos._x,pos._y,title,props) ;
 
 // Compute song grid location
 

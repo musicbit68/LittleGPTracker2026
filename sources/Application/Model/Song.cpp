@@ -38,6 +38,8 @@ void Song::SaveContent(TiXmlNode *node) {
 	saveHexBuffer(node,"PARAM1",phrase_->param1_,PHRASE_COUNT*16) ;
 	saveHexBuffer(node,"COMMAND2",phrase_->cmd2_,PHRASE_COUNT*16) ;
 	saveHexBuffer(node,"PARAM2",phrase_->param2_,PHRASE_COUNT*16) ;
+	saveHexBuffer(node,"CHAINNAMES",(unsigned char *)chain_->names_,CHAIN_COUNT*13) ;
+	saveHexBuffer(node,"PHRASENAMES",(unsigned char *)phrase_->names_,PHRASE_COUNT*13) ;
 
 } ;
 
@@ -72,6 +74,12 @@ void Song::RestoreContent(TiXmlElement *element) {
 		} ;
 		if (!strcmp("PARAM2",value)) {
 			restoreHexBuffer(current,(uchar *)phrase_->param2_) ;
+		} ;
+		if (!strcmp("CHAINNAMES",value)) {
+			restoreHexBuffer(current,(uchar *)chain_->names_) ;
+		} ;
+		if (!strcmp("PHRASENAMES",value)) {
+			restoreHexBuffer(current,(uchar *)phrase_->names_) ;
 		} ;
 		
 		
