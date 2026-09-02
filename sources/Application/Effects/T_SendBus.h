@@ -46,6 +46,7 @@ public:
 		downstream_ = 0;
 		downstreamSend_ = i2fp(0);
 		idleSamples_ = 0;
+		wasIdle_ = false;
 	}
 
 	virtual ~T_SendBus() {
@@ -99,16 +100,40 @@ public:
 		memset(accumulator_, 0, samplecount * 2 * sizeof(fixed));
 
 		bool longIdle = (idleSamples_ > SEND_BUS_IDLE_TIMEOUT_SAMPLES);
+		bool active = enabled_ && !longIdle;
 
-		if (enabled_ && !longIdle) {
+		if (active) {
 			effect_.Process(buffer, samplecount);
+
+			// just came back from being idle - fade in over this buffer
+			// instead of an instant jump, to avoid a click at the seam
+			if (wasIdle_) {
+				for (int n = 0; n < samplecount; n++) {
+					fixed gain = fl2fp((float)n / (float)samplecount);
+					buffer[n * 2] = fp_mul(buffer[n * 2], gain);
+					buffer[n * 2 + 1] = fp_mul(buffer[n * 2 + 1], gain);
+				}
+			}
+			wasIdle_ = false;
 		} else {
-			// either disabled, or idle long enough that any natural decay
-			// tail should already be inaudible - skip the DSP entirely
-			memset(buffer, 0, samplecount * 2 * sizeof(fixed));
+			if (!wasIdle_ && enabled_) {
+				// just became idle THIS callback - fade the last
+				// processed buffer out rather than hard-cutting to
+				// silence, then genuinely skip the DSP from here on
+				effect_.Process(buffer, samplecount);
+				for (int n = 0; n < samplecount; n++) {
+					fixed gain = fl2fp(1.0f - (float)n / (float)samplecount);
+					buffer[n * 2] = fp_mul(buffer[n * 2], gain);
+					buffer[n * 2 + 1] = fp_mul(buffer[n * 2 + 1], gain);
+				}
+			} else {
+				// either disabled, or already idle - genuinely skip the DSP
+				memset(buffer, 0, samplecount * 2 * sizeof(fixed));
+			}
+			wasIdle_ = true;
 		}
 
-		if (downstream_ && downstreamSend_ > 0 && !longIdle) {
+		if (downstream_ && downstreamSend_ > 0 && active) {
 			downstream_->Accumulate(buffer, samplecount, downstreamSend_);
 		}
 
@@ -127,6 +152,7 @@ private:
 	fixed downstreamSend_;
 
 	int idleSamples_;
+	bool wasIdle_;
 
 	void ensureAccumulatorSize(int samplecount) {
 		if (accumulator_ && accumulatorSize_ >= samplecount) return;

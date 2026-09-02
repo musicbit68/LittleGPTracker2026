@@ -92,8 +92,12 @@ void View::drawMap() {
 		sprintf(buffer,"SCPI");
         DrawString(pos._x,pos._y,buffer,props) ;
 		pos._y++ ;		
-		//row3: Mixer, Effects - reachable (via DOWN) from all 4 above
-        sprintf(buffer, "MX  ");
+		//row3: Mixer - reachable (via DOWN) from all 4 above
+        sprintf(buffer, "MMMM");
+        DrawString(pos._x,pos._y,buffer,props) ;
+		pos._y++ ;
+		//row4: Effects - reachable (via DOWN from Mixer) from all 4 above
+        sprintf(buffer, "XXXX");
         DrawString(pos._x,pos._y,buffer,props) ;
 
 		//draw current screen on map
@@ -136,8 +140,7 @@ void View::drawMap() {
 	        DrawString(pos._x,pos._y,"M",props) ;
 			break;
         case VT_EFFECT:
-			pos._x+=1;
-	        DrawString(pos._x,pos._y+2,"X",props) ;
+	        DrawString(pos._x,pos._y+3,"X",props) ;
 			break;
 		default: //VT_SONG
 			pos._y+=1;
