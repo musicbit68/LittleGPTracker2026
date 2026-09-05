@@ -81,7 +81,7 @@ EffectView::EffectView(GUIWindow &w, ViewData *data):FieldView(w, data) {
 
 	position._y += 1;
 	v = fx->FindVariable(EFP_REV_DECAY);
-	f1 = new UIIntVarField(position, *v, "decay:        %2.2X", 0, 0xFF, 1, 0x10);
+	f1 = new UIIntVarField(position, *v, "decay tone:   %2.2X", 0, 0xFF, 1, 0x10);
 	T_SimpleList<UIField>::Insert(f1);
 
 	position._y += 1;

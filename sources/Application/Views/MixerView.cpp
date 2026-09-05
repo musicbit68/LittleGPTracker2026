@@ -189,7 +189,11 @@ void MixerView::processNormalButtonMask(unsigned int mask) {
                 if (freq == 0)
                     newFreq = 20;
                 else {
-                    unsigned short step = freq / 10 < 1 ? 1 : freq / 10;
+                    // coarse step - always meaningfully bigger than the
+                    // fixed 10Hz fine step from Left/Right, even at low
+                    // cutoff frequencies (previously floored at 1Hz, which
+                    // could end up smaller than the "fine" step below ~200Hz)
+                    unsigned short step = freq / 5 < 20 ? 20 : freq / 5;
                     newFreq =
                         (unsigned short)(freq + step > 20000 ? 0
                                                                 : freq + step);
@@ -198,7 +202,7 @@ void MixerView::processNormalButtonMask(unsigned int mask) {
                 if (freq == 0)
                     newFreq = 20000;
                 else {
-                    unsigned short step = freq / 10 < 1 ? 1 : freq / 10;
+                    unsigned short step = freq / 5 < 20 ? 20 : freq / 5;
                     newFreq = (freq <= step)
                                     ? 0
                                     : (unsigned short)(freq - step < 20

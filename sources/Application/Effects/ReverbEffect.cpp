@@ -218,12 +218,16 @@ void ReverbEffect::Process(fixed *buffer, int samplecount) {
 		int i;
 		for (i = 0; i < REVERB_COMB_COUNT; i++) {
 			// modulated tap read BEFORE processComb overwrites this comb's
-			// current write index, layered on top of the standard tap
+			// current write index, layered on top of the standard tap.
+			// Scaled down significantly - without this, adding a
+			// full-strength extra tap per comb can nearly double the wet
+			// signal's amplitude at high mod depth, causing clipping.
 			fixed modTapL = i2fp(0);
 			fixed modTapR = i2fp(0);
 			if (modDepthSamples_ > 0.0f) {
-				modTapL = readModulatedTap(combL_[i], modPhase_[i]);
-				modTapR = readModulatedTap(combR_[i], modPhase_[i]);
+				fixed modTapGain = fl2fp(0.35f);
+				modTapL = fp_mul(readModulatedTap(combL_[i], modPhase_[i]), modTapGain);
+				modTapR = fp_mul(readModulatedTap(combR_[i], modPhase_[i]), modTapGain);
 			}
 
 			wetL = fp_add(wetL, fp_add(processComb(combL_[i], combInL), modTapL));
