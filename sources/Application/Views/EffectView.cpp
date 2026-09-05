@@ -22,23 +22,23 @@ EffectView::EffectView(GUIWindow &w, ViewData *data):FieldView(w, data) {
 
 	position._y += 1;
 	v = fx->FindVariable(EFP_MOD_DEPTH);
-	f1 = new UIIntVarField(position, *v, "mod depth: %2.2X", 0, 0xFF, 1, 0x10);
+	f1 = new UIIntVarField(position, *v, "mod depth:    %2.2X", 0, 0xFF, 1, 0x10);
 	T_SimpleList<UIField>::Insert(f1);
 	f1->SetFocus();
 
 	position._y += 1;
 	v = fx->FindVariable(EFP_MOD_RATE);
-	f1 = new UIIntVarField(position, *v, "mod rate: %2.2X", 0, 0xFF, 1, 0x10);
+	f1 = new UIIntVarField(position, *v, "mod rate:     %2.2X", 0, 0xFF, 1, 0x10);
 	T_SimpleList<UIField>::Insert(f1);
 
 	position._y += 1;
 	v = fx->FindVariable(EFP_MOD_WIDTH);
-	f1 = new UIIntVarField(position, *v, "mod width: %2.2X", 0, 0xFF, 1, 0x10);
+	f1 = new UIIntVarField(position, *v, "mod width:    %2.2X", 0, 0xFF, 1, 0x10);
 	T_SimpleList<UIField>::Insert(f1);
 
 	position._y += 1;
 	v = fx->FindVariable(EFP_MOD_REVSEND);
-	f1 = new UIIntVarField(position, *v, "mod->rvb: %2.2X", 0, 0xFF, 1, 0x10);
+	f1 = new UIIntVarField(position, *v, "mod->rvb:     %2.2X", 0, 0xFF, 1, 0x10);
 	T_SimpleList<UIField>::Insert(f1);
 
 	position._y += 2;
@@ -47,12 +47,12 @@ EffectView::EffectView(GUIWindow &w, ViewData *data):FieldView(w, data) {
 
 	position._y += 1;
 	v = fx->FindVariable(EFP_DEL_TIMEL);
-	f1 = new UIIntVarField(position, *v, "dly time L: %2.2X", 0, 0xFF, 1, 0x10);
+	f1 = new UIIntVarField(position, *v, "dly time L:   %2.2X", 0, 0xFF, 1, 0x10);
 	T_SimpleList<UIField>::Insert(f1);
 
 	position._y += 1;
 	v = fx->FindVariable(EFP_DEL_TIMER);
-	f1 = new UIIntVarField(position, *v, "dly time R: %2.2X", 0, 0xFF, 1, 0x10);
+	f1 = new UIIntVarField(position, *v, "dly time R:   %2.2X", 0, 0xFF, 1, 0x10);
 	T_SimpleList<UIField>::Insert(f1);
 
 	position._y += 1;
@@ -62,12 +62,12 @@ EffectView::EffectView(GUIWindow &w, ViewData *data):FieldView(w, data) {
 
 	position._y += 1;
 	v = fx->FindVariable(EFP_DEL_WIDTH);
-	f1 = new UIIntVarField(position, *v, "dly width: %2.2X", 0, 0xFF, 1, 0x10);
+	f1 = new UIIntVarField(position, *v, "dly width:    %2.2X", 0, 0xFF, 1, 0x10);
 	T_SimpleList<UIField>::Insert(f1);
 
 	position._y += 1;
 	v = fx->FindVariable(EFP_DEL_REVSEND);
-	f1 = new UIIntVarField(position, *v, "dly->rvb: %2.2X", 0, 0xFF, 1, 0x10);
+	f1 = new UIIntVarField(position, *v, "dly->rvb:     %2.2X", 0, 0xFF, 1, 0x10);
 	T_SimpleList<UIField>::Insert(f1);
 
 	position._y += 2;
@@ -76,27 +76,27 @@ EffectView::EffectView(GUIWindow &w, ViewData *data):FieldView(w, data) {
 
 	position._y += 1;
 	v = fx->FindVariable(EFP_REV_ROOMSIZE);
-	f1 = new UIIntVarField(position, *v, "room size: %2.2X", 0, 0xFF, 1, 0x10);
+	f1 = new UIIntVarField(position, *v, "room size:    %2.2X", 0, 0xFF, 1, 0x10);
 	T_SimpleList<UIField>::Insert(f1);
 
 	position._y += 1;
 	v = fx->FindVariable(EFP_REV_DECAY);
-	f1 = new UIIntVarField(position, *v, "decay: %2.2X", 0, 0xFF, 1, 0x10);
+	f1 = new UIIntVarField(position, *v, "decay:        %2.2X", 0, 0xFF, 1, 0x10);
 	T_SimpleList<UIField>::Insert(f1);
 
 	position._y += 1;
 	v = fx->FindVariable(EFP_REV_MODDEPTH);
-	f1 = new UIIntVarField(position, *v, "mod depth: %2.2X", 0, 0xFF, 1, 0x10);
+	f1 = new UIIntVarField(position, *v, "mod depth:    %2.2X", 0, 0xFF, 1, 0x10);
 	T_SimpleList<UIField>::Insert(f1);
 
 	position._y += 1;
 	v = fx->FindVariable(EFP_REV_MODRATE);
-	f1 = new UIIntVarField(position, *v, "mod rate: %2.2X", 0, 0xFF, 1, 0x10);
+	f1 = new UIIntVarField(position, *v, "mod rate:     %2.2X", 0, 0xFF, 1, 0x10);
 	T_SimpleList<UIField>::Insert(f1);
 
 	position._y += 1;
 	v = fx->FindVariable(EFP_REV_WIDTH);
-	f1 = new UIIntVarField(position, *v, "width: %2.2X", 0, 0xFF, 1, 0x10);
+	f1 = new UIIntVarField(position, *v, "width:        %2.2X", 0, 0xFF, 1, 0x10);
 	T_SimpleList<UIField>::Insert(f1);
 }
 
