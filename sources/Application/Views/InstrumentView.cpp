@@ -106,148 +106,126 @@ void InstrumentView::fillSampleParameters() {
     T_SimpleList<UIField>::Insert(f1);
     position._x -= 16;
 #endif
-    position._y += 2;
-    v=instrument->FindVariable(SIP_VOLUME) ;
-	f1=new UIIntVarField(position,*v,"volume: %d [%2.2X]",0,255,1,10) ;
-	T_SimpleList<UIField>::Insert(f1) ;
+        position._y += 2;
 
-    position._y+=1 ;
-	v=instrument->FindVariable(SIP_PAN) ;
-	f1=new UIIntVarField(position,*v,"pan: %2.2X",0,0xFE,1,0x10) ;
-	T_SimpleList<UIField>::Insert(f1) ;
-
-	position._y+=2 ;
-	UIStaticField *sendLabel=new UIStaticField(position,"snd c/d/r: ") ;
-	T_SimpleList<UIField>::Insert(sendLabel) ;
-
-	position._x+=13 ;
-	v=instrument->FindVariable(SIP_SNDC) ;
-	f1=new UIIntVarField(position,*v,"%2.2X",0,0xFF,1,0x10) ;
-	T_SimpleList<UIField>::Insert(f1) ;
-
-	position._x+=3 ;
-	v=instrument->FindVariable(SIP_SNDD) ;
-	f1=new UIIntVarField(position,*v,"%2.2X",0,0xFF,1,0x10) ;
-	T_SimpleList<UIField>::Insert(f1) ;
-
-	position._x+=3 ;
-	v=instrument->FindVariable(SIP_SNDR) ;
-	f1=new UIIntVarField(position,*v,"%2.2X",0,0xFF,1,0x10) ;
-	T_SimpleList<UIField>::Insert(f1) ;
-	position._x-=19 ;
-
-	position._y+=1 ;
-	v=instrument->FindVariable(SIP_ROOTNOTE) ;
-	f1=new UINoteVarField(position,*v,"root note: %s",0,0x7F,1,0x0C) ;
-	T_SimpleList<UIField>::Insert(f1) ;
-
-	position._y+=1 ;
-	v=instrument->FindVariable(SIP_FINETUNE) ;
-	f1=new UIIntVarField(position,*v,"detune: %2.2X",0,255,1,0x10) ;
-	T_SimpleList<UIField>::Insert(f1) ;
-
-    position._y += 2;
-    v=instrument->FindVariable(SIP_CRUSH);
-	f1=new UIIntVarField(position,*v,"crush: %d",1,0x10,1,4) ;
-	T_SimpleList<UIField>::Insert(f1) ;
-
-    position._x += 10;
-    v = instrument->FindVariable(SIP_CRUSHVOL);
-    f1=new UIIntVarField(position,*v,"drive: %2.2X",0,0xFF,1,0x10) ;
-	T_SimpleList<UIField>::Insert(f1) ;
-    position._x -= 10;
+    // FILTER
+    v=instrument->FindVariable(SIP_FILTCUTOFF);
+    f1=new UIIntVarField(position,*v,"FLT CUTOFF     %2.2X",0,0xFF,1,0x10);
+    T_SimpleList<UIField>::Insert(f1);
 
     position._y += 1;
-	v=instrument->FindVariable(SIP_DOWNSMPL) ;
-	f1=new UIIntVarField(position,*v,"downsample: %d",0,8,1,4) ;
-	T_SimpleList<UIField>::Insert(f1) ;
+    v=instrument->FindVariable(SIP_FILTRESO);
+    f1=new UIIntVarField(position,*v,"FLT RES        %2.2X",0,0xFF,1,0x10);
+    T_SimpleList<UIField>::Insert(f1);
 
+    position._y += 1;
+    v=instrument->FindVariable(SIP_FILTMIX);
+    f1=new UIIntVarField(position,*v,"FLT TYPE       %2.2X",0,0xFF,1,0x10);
+    T_SimpleList<UIField>::Insert(f1);
 
-	position._y+=2 ;
-	UIStaticField *sf=new UIStaticField(position,"flt cut/res:") ;
-	T_SimpleList<UIField>::Insert(sf) ;
+    position._y += 1;
+    v=instrument->FindVariable(SIP_FILTMODE);
+    f1=new UIIntVarField(position,*v,"FLT CIRCUIT    %s",0,2,1,1);
+    T_SimpleList<UIField>::Insert(f1);
 
-	position._x+=13 ;
-	v=instrument->FindVariable(SIP_FILTCUTOFF) ;
-	f1=new UIIntVarField(position,*v,"%2.2X",0,0xFF,1,0x10) ;
-	T_SimpleList<UIField>::Insert(f1) ;
+    // DRIVE
+    position._y += 1;
+    v=instrument->FindVariable(SIP_CRUSHVOL);
+    f1=new UIIntVarField(position,*v,"DRIVE          %2.2X",0,0xFF,1,0x10);
+    T_SimpleList<UIField>::Insert(f1);
 
-	position._x+=3 ;
-	v=instrument->FindVariable(SIP_FILTRESO) ;
-	f1=new UIIntVarField(position,*v,"%2.2X",0,0xFF,1,0x10) ;
-	T_SimpleList<UIField>::Insert(f1) ;
-	position._x-=16 ;
+    // BIT DEPTH
+    position._y += 1;
+    v=instrument->FindVariable(SIP_CRUSH);
+    f1=new UIIntVarField(position,*v,"BIT DEPTH      %d",1,0x10,1,4);
+    T_SimpleList<UIField>::Insert(f1);
 
-	position._y+=1 ;
-	v=instrument->FindVariable(SIP_FILTMIX) ;
-	f1=new UIIntVarField(position,*v,"type: %2.2X",0,0xFF,1,0x10) ;
-	T_SimpleList<UIField>::Insert(f1) ;
+    // SAMPLE RATE
+    position._y += 1;
+    v=instrument->FindVariable(SIP_DOWNSMPL);
+    f1=new UIIntVarField(position,*v,"SMPL-RATE      %d",0,8,1,4);
+    T_SimpleList<UIField>::Insert(f1);
 
-	position._y+=1 ;
-	v=instrument->FindVariable(SIP_FILTMODE) ;
-	f1=new UIIntVarField(position,*v,"Mode: %s",0,2,1,1) ;
-	T_SimpleList<UIField>::Insert(f1) ;
+    // VOLUME
+    position._y += 1;
+    v=instrument->FindVariable(SIP_VOLUME);
+    f1=new UIIntVarField(position,*v,"VOLUME         %d [%2.2X]",0,255,1,10);
+    T_SimpleList<UIField>::Insert(f1);
 
-	position._y+=1 ;
-	v=instrument->FindVariable(SIP_ATTENUATE) ;
-	f1=new UIIntVarField(position,*v,"attenuate: %d [%2.2X]",1,0xFF,1,0x10) ;
-	T_SimpleList<UIField>::Insert(f1) ;
+    // PAN
+    position._y += 1;
+    v=instrument->FindVariable(SIP_PAN);
+    f1=new UIIntVarField(position,*v,"PAN            %2.2X",0,0xFE,1,0x10);
+    T_SimpleList<UIField>::Insert(f1);
 
-	position._y+=1 ;
-	sf=new UIStaticField(position,"fb tune/mix: ") ;
-	T_SimpleList<UIField>::Insert(sf) ;
+    // CHORUS
+    position._y += 1;
+    v=instrument->FindVariable(SIP_SNDC);
+    f1=new UIIntVarField(position,*v,"CHORUS         %2.2X",0,0xFF,1,0x10);
+    T_SimpleList<UIField>::Insert(f1);
 
-	v=instrument->FindVariable(SIP_FBTUNE) ;
-	position._x+=13 ;
-	f1=new UIIntVarField(position,*v,"%2.2X",0,0xFF,1,0x10) ;
-	T_SimpleList<UIField>::Insert(f1) ;
+    // DELAY
+    position._y += 1;
+    v=instrument->FindVariable(SIP_SNDD);
+    f1=new UIIntVarField(position,*v,"DELAY          %2.2X",0,0xFF,1,0x10);
+    T_SimpleList<UIField>::Insert(f1);
 
-	position._x+=3 ;
-	v=instrument->FindVariable(SIP_FBMIX) ;
-	f1=new UIIntVarField(position,*v,"%2.2X",0,0xFF,1,0X10) ;
-	T_SimpleList<UIField>::Insert(f1) ;
+    // REVERB
+    position._y += 1;
+    v=instrument->FindVariable(SIP_SNDR);
+    f1=new UIIntVarField(position,*v,"REVERB         %2.2X",0,0xFF,1,0x10);
+    T_SimpleList<UIField>::Insert(f1);
 
-	position._x-=16 ;
+    // ROOT NOTE
+    position._y += 1;
+    v=instrument->FindVariable(SIP_ROOTNOTE);
+    f1=new UINoteVarField(position,*v,"ROOT NOTE      %s",0,0x7F,1,0x0C);
+    T_SimpleList<UIField>::Insert(f1);
 
-	position._y+=2;
-	v=instrument->FindVariable(SIP_INTERPOLATION) ;
-	f1=new UIIntVarField(position,*v,"interpolation: %s",0,1,1,1) ;
-	T_SimpleList<UIField>::Insert(f1) ;
+    // DETUNE
+    position._y += 1;
+    v=instrument->FindVariable(SIP_FINETUNE);
+    f1=new UIIntVarField(position,*v,"DETUNE         %2.2X",0,255,1,0x10);
+    T_SimpleList<UIField>::Insert(f1);
 
-    position._y+=1 ;
-	v=instrument->FindVariable(SIP_LOOPMODE) ;
-	f1=new UIIntVarField(position,*v,"loop mode: %s",0,SILM_LAST-1,1,1) ;
-	T_SimpleList<UIField>::Insert(f1) ;
-	position._y+=1 ;
+    // INTERPOLATION
+    position._y += 1;
+    v=instrument->FindVariable(SIP_INTERPOLATION);
+    f1=new UIIntVarField(position,*v,"INTERPOLATION   %s",0,1,1,1);
+    T_SimpleList<UIField>::Insert(f1);
 
-	v=instrument->FindVariable(SIP_SLICES) ;
-	f1=new UIIntVarField(position,*v,"slices: %2.2X",1,0xFF,1,0x10) ;
-	T_SimpleList<UIField>::Insert(f1) ;
+    // LOOP MODE
+    position._y += 1;
+    v=instrument->FindVariable(SIP_LOOPMODE);
+    f1=new UIIntVarField(position,*v,"LOOP MODE      %s",0,SILM_LAST-1,1,1);
+    T_SimpleList<UIField>::Insert(f1);
 
-	position._y+=1 ;
-	v=instrument->FindVariable(SIP_START) ;
-	f1=new UIBigHexVarField(position,*v,7,"start: %7.7X",0,instrument->GetSampleSize()-1,16) ;
-	T_SimpleList<UIField>::Insert(f1) ;
+    // SLICES
+    position._y += 1;
+    v=instrument->FindVariable(SIP_SLICES);
+    f1=new UIIntVarField(position,*v,"SLICES         %2.2X",1,0xFF,1,0x10);
+    T_SimpleList<UIField>::Insert(f1);
 
-	position._y+=1 ;
-	v=instrument->FindVariable(SIP_LOOPSTART) ;
-	f1=new UIBigHexVarField(position,*v,7,"loop start: %7.7X",0,instrument->GetSampleSize()-1,16) ;
-	T_SimpleList<UIField>::Insert(f1) ;
+    // START
+    position._y += 1;
+    v=instrument->FindVariable(SIP_START);
+    f1=new UIBigHexVarField(position,*v,7,"START          %7.7X",
+                            0,instrument->GetSampleSize()-1,16);
+    T_SimpleList<UIField>::Insert(f1);
 
-	position._y+=1 ;
-	v=instrument->FindVariable(SIP_END) ;
-	f1=new UIBigHexVarField(position,*v,7,"loop end: %7.7X",0,instrument->GetSampleSize()-1,16) ;
-	T_SimpleList<UIField>::Insert(f1) ;
+    // LOOP START
+    position._y += 1;
+    v=instrument->FindVariable(SIP_LOOPSTART);
+    f1=new UIBigHexVarField(position,*v,7,"LOOP START     %7.7X",
+                            0,instrument->GetSampleSize()-1,16);
+    T_SimpleList<UIField>::Insert(f1);
 
-	v=instrument->FindVariable(SIP_TABLEAUTO) ;
-	position._y+=2 ;
-	UIIntVarField *f2=new UIIntVarField(position,*v,"automation: %s",0,1,1,1) ;
-	T_SimpleList<UIField>::Insert(f2) ;
-
-	position._y+=1 ;
-	v=instrument->FindVariable(SIP_TABLE) ;
-	f1=new UIIntVarOffField(position,*v,"table: %2.2X",0x00,0x7F,1,0x10) ;
-	T_SimpleList<UIField>::Insert(f1) ;
+    // LOOP END
+    position._y += 1;
+    v=instrument->FindVariable(SIP_END);
+    f1=new UIBigHexVarField(position,*v,7,"LOOP END       %7.7X",
+                            0,instrument->GetSampleSize()-1,16);
+    T_SimpleList<UIField>::Insert(f1);
 
 } ;
 
