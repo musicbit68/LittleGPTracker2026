@@ -160,7 +160,7 @@ void View::drawNotes() {
     if (!miniLayout_) {
 
 		GUIPoint anchor=GetAnchor() ;
-		int initialX = View::margin_+10 ;
+		int initialX = anchor._x ;
 		int initialY = anchor._y+23 ;
 		GUIPoint pos(initialX,initialY) ;
 		GUITextProperties props ;
