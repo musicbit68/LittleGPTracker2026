@@ -686,7 +686,7 @@ void TableView::processNormalButtonMask(unsigned short mask) {
             // R Modifier
 
             if (mask & EPBM_R) {
-                if (mask & EPBM_UP) {
+                if (mask & EPBM_DOWN) {
                     ViewType vt =
                         (viewType_ == VT_TABLE ? VT_PHRASE : VT_INSTRUMENT);
                     ViewEvent ve(VET_SWITCH_VIEW, &vt);
@@ -699,7 +699,7 @@ void TableView::processNormalButtonMask(unsigned short mask) {
                         ViewEvent ve(VET_SWITCH_VIEW, &vt);
                         SetChanged();
                         NotifyObservers(&ve);
-                    } else if (VT_TABLE) {
+                    } else if (viewType_ == VT_TABLE) {
                         ViewType vt = VT_MIXER;
                         ViewEvent ve(VET_SWITCH_VIEW, &vt);
                         SetChanged();
