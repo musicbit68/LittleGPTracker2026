@@ -355,27 +355,24 @@ void InstrumentView::fillSampleParameters() {
     T_SimpleList<UIField>::Insert(f1);
 
 
-    /*
-        LOOP START / END
-        LOOP START/END       00000000  0000A39F
-    */
-
+    // LOOP START
     position._y += 1;
 
     v=instrument->FindVariable(SIP_LOOPSTART);
-    f1=new UIBigHexVarField(position,*v,7,
-        "LOOP START/END      %7.7X",
-        0,instrument->GetSampleSize()-1,16);
+    f1=new UIBigHexVarField(position,*v,8,"LOOP START          %8.8X",
+                            0,instrument->GetSampleSize()-1,16);
     T_SimpleList<UIField>::Insert(f1);
 
-    // 7 characters for the first value + spacing
-    position._x += 9;
+
+    // LOOP END
+    position._y += 1;
+
     v=instrument->FindVariable(SIP_END);
-    f1=new UIBigHexVarField(position,*v,7,
-        "%7.7X",
-        0,instrument->GetSampleSize()-1,16);
+    f1=new UIBigHexVarField(position,*v,8,"LOOP END            %8.8X",
+                            0,instrument->GetSampleSize()-1,16);
     T_SimpleList<UIField>::Insert(f1);
-    position._x -= 9;
+
+    position._x = 0;
 
 } ;
 
